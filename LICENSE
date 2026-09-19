@@ -1,3 +1,9 @@
+Scope: This MIT license covers original HafizAssist code only. Third-party
+assets and derived components retain their respective licenses, as detailed
+in licenses/NOTICE.md. The assembled application includes ReciteQuran
+components restricted to free, non-commercial use; this MIT license does
+not override those restrictions or the Quran-Lab model license.
+
 MIT License
 
 Copyright (c) 2026 gufranmohammed48-git
