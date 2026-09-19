@@ -6,6 +6,17 @@ let lastText = '';
 let runtimePromise;
 const modelName = 'zipformer_p_arabic_v3.int8.onnx';
 const modelUrl = new URL(`models/${modelName}`, self.location.href).href;
+async function downloadUrl() {
+  const response = await fetch(new URL('model-config.json', self.location.href));
+  if (!response.ok) throw new Error('Model download configuration is missing. Redeploy the complete site.');
+  const config = await response.json();
+  if (!config.modelUrl) return modelUrl; // Local development/file-picker fallback.
+  const remote = new URL(config.modelUrl);
+  if (remote.protocol !== 'https:' || remote.username || remote.password) {
+    throw new Error('The model download URL must be a public HTTPS URL without credentials.');
+  }
+  return remote.href;
+}
 const send = (type, data = {}) => self.postMessage({ type, sessionId, ...data });
 
 function runtime() {
@@ -33,14 +44,18 @@ async function loadModel(file) {
   } else {
     response = await cache?.match(modelUrl);
     if (!response) {
-      try { response = await fetch(modelUrl); }
+      try {
+        const sourceUrl = await downloadUrl();
+        send('progress', { value: 0, message: 'Downloading speech model for this device…' });
+        response = await fetch(sourceUrl, { mode: 'cors', credentials: 'omit' });
+      }
       catch {
-        const error = new Error('The speech model is not saved on this device. Select your downloaded INT8 model, or reconnect to load it.');
+        const error = new Error('Could not download the speech model. Check your connection; the model host must allow this website through CORS. You can also select your downloaded INT8 model below.');
         error.needsModel = true; throw error;
       }
     }
   }
-  if (!response.ok) { const error = new Error('Select your downloaded INT8 model to enable recitation.'); error.needsModel = true; throw error; }
+  if (!response.ok) { const error = new Error(`Model download failed (HTTP ${response.status}). The public model URL may be missing or unavailable. Select your downloaded INT8 model below to continue.`); error.needsModel = true; throw error; }
   const total = Number(response.headers.get('Content-Length')) || 72705392;
   const reader = response.body.getReader();
   const chunks = []; let loaded = 0;
@@ -48,6 +63,7 @@ async function loadModel(file) {
     const { done, value } = await reader.read();
     if (done) break;
     chunks.push(value); loaded += value.length;
+    if (loaded > 72705392) { await reader.cancel(); throw new Error('The hosted model is too large. Upload zipformer_p_arabic_v3.int8.onnx (72,705,392 bytes).'); }
     send('progress', { value: Math.min(95, loaded / total * 95), message: `Loading speech model · ${Math.round(loaded / 1e6)} MB` });
   }
   if (loaded !== 72705392) { const error = new Error('Model is missing or incomplete. Select the downloaded INT8 v3 ONNX file.'); error.needsModel = true; throw error; }

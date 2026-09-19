@@ -51,6 +51,10 @@ Model weights are ignored by Git and excluded from the static build. On a machin
 
 ## Publish later
 
+For **Cloudflare Pages** Git integration, use framework preset **None**, build command `node scripts/build.mjs`, and output directory `dist` (repository root as the root directory). Use Node.js 20.11 or newer.
+
+V2 supports automatic model downloads: set the Pages build environment variable `MODEL_URL` to your full public HTTPS R2 object URL, then redeploy. Alternatively, set `modelUrl` in `public/model-config.json`; the environment variable takes precedence at build time. See [the R2 setup guide](docs/R2-SETUP.md) and [dashboard CORS template](docs/r2-cors.json). V3 configures https://model.hafizassist.com/zipformer_p_arabic_v3.int8.onnx in public/model-config.json. Upload the file at the bucket root and configure CORS for the website origin. A pre-existing MODEL_URL build variable overrides this setting, so remove it or use the same URL. The object/download has not been tested. Model weights remain ignored by Git and excluded from the build. Cloudflare Pages' [25 MiB single-asset limit](https://developers.cloudflare.com/pages/platform/limits/) prevents serving this 72.7 MB model as one Pages asset. No bucket has been created or deployed by this implementation.
+
 ```powershell
 node scripts/build.mjs
 ```
@@ -58,6 +62,12 @@ node scripts/build.mjs
 Publish the resulting `dist` directory with any HTTPS static host. The relative asset paths support a project subdirectory, such as GitHub Pages. Serve `.wasm` as `application/wasm`. No server API or special cross-origin isolation headers are required by the bundled single-thread runtime. Do not include a previously added ONNX file in your deployment output. The build intentionally does not distribute model weights; users select their own downloaded model.
 
 Nothing has been committed, pushed, or deployed by this implementation.
+
+## Visible application version
+
+The far-right header badge starts at **V1**. Every subsequent delivered change increments that number, including nonvisual fixes. `index.html` and the matching offline cache version in `public/sw.js` must be updated together; the repository rule is in `AGENTS.md`.
+
+The current release is **V3**, connecting the model.hafizassist.com custom domain. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
 
 ## Architecture
 
