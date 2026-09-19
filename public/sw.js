@@ -1,11 +1,12 @@
 // Increment with every delivered change; keep index.html's badge in sync.
-const VERSION = 'V4';
+const VERSION = 'V5';
 const PREFIX = `hafizassist-shell:${self.registration.scope}:`;
 const SHELL = PREFIX + VERSION;
 const url = path => new URL(path, self.registration.scope).href;
 const FILES = [
   'index.html', 'favicon.svg', 'src/app.js', 'src/alignment.js',
   'src/offline.js', 'src/style.css', 'data/quran.json', 'data/HafsSmart.ttf',
+  'data/mushaf-layout.json', 'assets/bismillah.png',
   'recognizer-worker.js', 'audio-worklet.js', 'models/tokens.txt', 'model-config.json',
   'vendor/sherpa-onnx-asr.js', 'vendor/sherpa-onnx-wasm-main-asr.js',
   'vendor/sherpa-onnx-wasm-main-asr.wasm',

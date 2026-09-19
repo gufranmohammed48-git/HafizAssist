@@ -8,10 +8,12 @@ let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
-let finishResolve, startResolve, stopPromise;
+let finishResolve, startResolve, stopPromise, engineResolve;
 let elapsed = 0, startedAt = 0, memoryMode = false, revealed = false, fontSize = 34;
 let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
+let layouts = {}, currentPage = 1, view = 'mushaf';
+const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]'); if (!Array.isArray(history)) history = []; } catch {}
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
 
@@ -19,7 +21,9 @@ const bars = Array.from({ length: 40 }, () => { const bar = document.createEleme
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
-  for (const id of ['surah', 'from', 'to', 'sensitivity']) $(id).disabled = locked() || !chapter;
+  for (const id of ['surah', 'from', 'to', 'sensitivity', 'page', 'page-go', 'search', 'search-go', 'view']) $(id).disabled = locked() || !chapter;
+  $('previous-page').disabled = locked() || currentPage <= 1;
+  $('next-page').disabled = locked() || currentPage >= 604;
   $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase);
   $('reset').disabled = ['loading', 'starting', 'stopping'].includes(phase);
   $('record').classList.toggle('recording', phase === 'recording');
@@ -45,28 +49,52 @@ function paint() {
   $('progress').value = percentage;
   $('percent').textContent = `${percentage}%`;
   $('progress-hint').textContent = review ? `${review} word${review === 1 ? '' : 's'} to revisit. Select a word to try again.` : matched ? `${matched} of ${words.length} words matched.` : 'One ayah at a time.';
-  const currentAyah = words[cursor]?.ayah;
-  document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', Number(row.dataset.ayah) === currentAyah));
-  if ($('follow').checked && currentAyah && currentAyah !== lastFollowedAyah && phase === 'recording') {
-    const row = elements[cursor].parentElement;
+  const currentAyah = words[cursor] && `${words[cursor].surah}:${words[cursor].ayah}`;
+  document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', row.dataset.key === currentAyah));
+  const currentPosition = currentAyah && `${currentAyah}:${elements[cursor].offsetTop}`;
+  if ($('follow').checked && currentPosition && currentPosition !== lastFollowedAyah && phase === 'recording') {
     const container = $('ayahs');
-    const top = row.offsetTop;
+    const top = elements[cursor].offsetTop;
     container.scrollTo({ top: Math.max(0, top - container.clientHeight / 3), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
-  lastFollowedAyah = currentAyah;
+  lastFollowedAyah = currentPosition;
 }
 
 function renderPassage() {
   $('ayahs').replaceChildren(); words = []; elements = [];
+  $('ayahs').classList.toggle('mushaf', view === 'mushaf');
+  $('ayahs').classList.toggle('opening-page', currentPage <= 2 && view === 'mushaf');
+  $('view').value = view;
+  $('page').value = currentPage;
   const first = Number($('from').value), last = Number($('to').value);
-  for (const verse of chapter.verses.filter(v => v.ayah >= first && v.ayah <= last)) {
-    const row = document.createElement('div'); row.className = 'ayah'; row.dataset.ayah = verse.ayah; row.lang = 'ar'; row.dir = 'rtl';
+  const verses = view === 'mushaf'
+    ? chapters.flatMap(c => c.verses).filter(v => layouts[verseKey(v)][1].some(([page]) => page === currentPage))
+    : chapter.verses.filter(v => v.ayah >= first && v.ayah <= last);
+  const lines = new Map();
+  function pageLine(line) {
+    if (!lines.has(line)) {
+      const row = document.createElement('div'); row.className = 'mushaf-line'; row.lang = 'ar'; row.dir = 'rtl';
+      lines.set(line, row); $('ayahs').append(row);
+    }
+    return lines.get(line);
+  }
+  for (const verse of verses) {
+    const layout = layouts[verseKey(verse)][1];
+    if (view === 'mushaf' && verse.ayah === 1 && layout[0][0] === currentPage) {
+      const heading = document.createElement('h3'); heading.className = 'mushaf-surah-header'; heading.lang = 'ar'; heading.dir = 'rtl';
+      heading.textContent = `سورة ${chapters.find(c => c.id === verse.surah).ar}`; $('ayahs').append(heading);
+      if (![1, 9].includes(verse.surah)) {
+        const bismillah = document.createElement('img'); bismillah.src = './assets/bismillah.png'; bismillah.alt = 'Bismillah ir-Rahman ir-Raheem'; bismillah.className = 'page-bismillah'; $('ayahs').append(bismillah);
+      }
+    }
+    const row = document.createElement('div'); row.className = 'ayah'; row.dataset.key = verseKey(verse); row.lang = 'ar'; row.dir = 'rtl';
     // HafsSmart glyphs preserve the source's exact per-word text mapping.
     const glyphs = verse.aya_ui.trim().split(/\s+/u); glyphs.pop();
     const readable = verse.aya_text.trim().split(/\s+/u);
     verse.aya_phonemes_list.forEach((phoneme, position) => {
+      if (view === 'mushaf' && layout[position][0] !== currentPage) return;
       const index = words.length;
-      const word = { ayah: verse.ayah, position, phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}` };
+      const word = { surah: verse.surah, ayah: verse.ayah, position, phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}` };
       words.push(word);
       const button = document.createElement('button'); button.className = 'word'; button.textContent = glyphs[position] || readable[position] || '…'; button.type = 'button';
       button.addEventListener('click', () => {
@@ -75,15 +103,39 @@ function renderPassage() {
         states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
         savedThisRun = false; paint(); status(`Ready from ayah ${word.ayah}, word ${word.position + 1}.`);
       });
-      row.append(button, document.createTextNode(' ')); elements.push(button);
+      (view === 'mushaf' ? pageLine(layout[position][1]) : row).append(button, document.createTextNode(' ')); elements.push(button);
     });
-    const number = document.createElement('span'); number.className = 'ayah-number'; number.textContent = arabicNumber.format(verse.ayah); number.setAttribute('aria-label', `Ayah ${verse.ayah}`); row.append(number); $('ayahs').append(row);
+    const number = document.createElement('span'); number.className = 'ayah-number'; number.textContent = arabicNumber.format(verse.ayah); number.setAttribute('aria-label', `Ayah ${verse.ayah}`);
+    if (view === 'mushaf') { if (layout.at(-1)[0] === currentPage) pageLine(layout.at(-1)[1]).append(number); }
+    else { row.append(number); $('ayahs').append(row); }
   }
-  $('surah-ar').textContent = chapter.ar;
-  $('surah-title').textContent = `${chapter.en} · ${chapter.verses.length} ayahs`;
-  $('passage-label').textContent = `SURAH ${chapter.id} · AYAHS ${first}–${last}`;
-  resetSession(); $('ayahs').scrollTop = 0;
+  const pageChapters = [...new Set(verses.map(v => v.surah))].map(id => chapters.find(c => c.id === id));
+  $('surah-ar').textContent = pageChapters.map(c => c.ar).join(' · ');
+  $('surah-title').textContent = view === 'mushaf' ? `Juz ${layouts[verseKey(verses[0])][0]} · Page ${currentPage} of 604` : `${chapter.en} · ${chapter.verses.length} ayahs`;
+  $('passage-label').textContent = view === 'mushaf' ? `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}` : `SURAH ${chapter.id} · AYAHS ${first}–${last}`;
+  resetSession(); $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
+function fitMushafLines() {
+  // Preserve the printed page's line breaks on narrow screens and after zoom.
+  for (const line of $('ayahs').querySelectorAll('.mushaf-line')) {
+    line.style.setProperty('--quran-size', `${fontSize}px`);
+    const children = [...line.children];
+    const gap = parseFloat(getComputedStyle(line).columnGap) || 0;
+    let size = fontSize;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const needed = children.reduce((sum, child) => {
+        const style = getComputedStyle(child);
+        return sum + child.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+      }, gap * Math.max(0, children.length - 1));
+      if (needed <= line.clientWidth) break;
+      size = Math.max(10, size * (line.clientWidth - 8) / needed);
+      line.style.setProperty('--quran-size', `${size}px`);
+    }
+  }
+}
+new ResizeObserver(fitMushafLines).observe($('ayahs'));
+document.fonts.ready.then(fitMushafLines);
+document.fonts.addEventListener('loadingdone', fitMushafLines);
 function resetSession() {
   states = new Array(words.length); committed = [...states]; cursor = 0; segmentStart = 0;
   segmentCarry = '';
@@ -97,7 +149,49 @@ function selectChapter() {
     $(id).replaceChildren(...chapter.verses.map(v => new Option(String(v.ayah), String(v.ayah))));
   }
   $('from').value = '1'; $('to').value = String(Math.min(chapter.verses.length, 10));
+  currentPage = layouts[`${chapter.id}:1`][1][0][0];
   renderPassage(); controls();
+  if (view === 'mushaf') focusVerse(`${chapter.id}:1`);
+}
+
+function focusVerse(key) {
+  const index = words.findIndex(w => `${w.surah}:${w.ayah}` === key);
+  if (index < 0) return;
+  cursor = index; segmentStart = index; paint();
+  // Scroll the text panel only; keep the top controls in place.
+  $('ayahs').scrollTop = Math.max(0, elements[index].offsetTop - 80);
+  status(`Ready from ayah ${key}.`);
+}
+
+function openPage(page, targetKey) {
+  if (locked()) return;
+  if (!Number.isInteger(page) || page < 1 || page > 604) { status('Enter a page number from 1 to 604.', true); return; }
+  // Synchronize the range selectors with the first (or searched) surah on this page.
+  const firstVerse = chapters.flatMap(c => c.verses).find(v => targetKey ? verseKey(v) === targetKey : layouts[verseKey(v)][1].some(([p]) => p === page));
+  chapter = chapters.find(c => c.id === firstVerse.surah);
+  $('surah').value = chapter.id;
+  for (const id of ['from', 'to']) $(id).replaceChildren(...chapter.verses.map(v => new Option(String(v.ayah), String(v.ayah))));
+  $('from').value = firstVerse.ayah;
+  const pageVerses = chapter.verses.filter(v => layouts[verseKey(v)][1].some(([p]) => p === page));
+  $('to').value = pageVerses.at(-1).ayah;
+  view = 'mushaf'; currentPage = page; renderPassage();
+  if (targetKey) focusVerse(targetKey);
+}
+const searchName = value => value.normalize('NFKD').replace(/[\u0300-\u036f\u064b-\u065f\u0670ـ]/g, '').replace(/[أإآٱ]/g, 'ا').toLowerCase().replace(/[^\p{L}\p{N}:]/gu, '');
+function searchPassage(event) {
+  event.preventDefault(); if (locked()) return;
+  const value = $('search').value.trim().replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit));
+  const key = value.match(/^(\d+)\s*:\s*(\d+)$/);
+  if (key) {
+    const normalized = `${Number(key[1])}:${Number(key[2])}`;
+    if (layouts[normalized]) { openPage(layouts[normalized][1][0][0], normalized); return; }
+  } else {
+    const query = searchName(value);
+    const found = chapters.find(c => String(c.id) === value || searchName(c.en) === query || searchName(c.ar) === query)
+      || (query.length > 1 && chapters.find(c => searchName(c.en).includes(query) || searchName(c.ar).includes(query)));
+    if (found) { $('surah').value = found.id; view = 'mushaf'; selectChapter(); return; }
+  }
+  status('Search a surah name or number, or enter surah:ayah, such as 2:255.', true);
 }
 
 function renderHistory() {
@@ -105,7 +199,7 @@ function renderHistory() {
   if (!history.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Your completed practice sessions will appear here.'; $('history-list').append(p); return; }
   for (const item of history.slice(0, 8)) {
     const row = document.createElement('div'); row.className = 'history-item';
-    const name = document.createElement('div'); name.textContent = `${item.surah} · ${item.from}–${item.to}`;
+    const name = document.createElement('div'); name.textContent = item.passage || `${item.surah} · ${item.from}–${item.to}`;
     const detail = document.createElement('span'); detail.textContent = `${item.matched} matched · ${formatTime(item.seconds)} · ${new Date(item.date).toLocaleDateString()}`;
     row.append(name, detail); $('history-list').append(row);
   }
@@ -114,6 +208,7 @@ function saveSession() {
   if (savedThisRun || elapsed < 1) return;
   savedThisRun = true;
   const entry = { surah: chapter.en, from: Number($('from').value), to: Number($('to').value), matched: states.filter(s => s === 'matched').length, review: states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
+  entry.passage = $('passage-label').textContent;
   history.unshift(entry); history = history.slice(0, 30);
   try { localStorage.setItem('hafizassist-history', JSON.stringify(history)); } catch { status('Session finished. Browser storage is unavailable, so history cannot be saved.'); }
   renderHistory();
@@ -125,15 +220,13 @@ function createWorker() {
   worker.onmessage = ({ data }) => {
     if (data.type === 'progress') { status(data.message); $('download').value = data.value; return; }
     if (data.type === 'ready') {
-      clearTimeout(workerTimer); engineReady = true; phase = 'idle'; $('download').hidden = true; $('model-picker').hidden = true;
-      status('Speech model ready. Press Start reciting and allow microphone access.'); controls();
+      clearTimeout(workerTimer); engineReady = true; $('download').hidden = true; $('model-picker').hidden = true;
+      engineResolve?.(); engineResolve = null;
       void refreshOfflineStatus(); return;
     }
     if (data.type === 'error') {
       clearTimeout(workerTimer);
-      if (data.needsModel) {
-        phase = 'idle'; $('download').hidden = true; $('model-picker').hidden = false; status(data.message); controls();
-      } else failEngine(data.message);
+      void failEngine(data.message);
       return;
     }
     if (data.sessionId !== sessionId) return;
@@ -164,12 +257,13 @@ function createWorker() {
   };
 }
 function loadEngine(file) {
-  if (phase !== 'idle') return;
-  if (!window.isSecureContext) { status('Open this site on HTTPS or http://localhost:5173 to use the microphone.', true); return; }
   if (!worker) createWorker();
   phase = 'loading'; $('download').hidden = false; $('download').value = 0; $('model-picker').hidden = true; controls();
-  workerTimer = setTimeout(() => failEngine('Model loading timed out. Try again or reload the page.'), 180000);
-  worker.postMessage({ type: 'init', file });
+  return new Promise((resolve, reject) => {
+    engineResolve = error => error ? reject(error) : resolve();
+    workerTimer = setTimeout(() => failEngine('Model loading timed out. Try again or reload the page.'), 180000);
+    worker.postMessage({ type: 'init', file });
+  });
 }
 
 async function releaseAudio() {
@@ -190,6 +284,7 @@ async function failEngine(message) {
   finishResolve?.(new Error(message)); finishResolve = null;
   flushResolve?.(); flushResolve = null;
   await releaseAudio();
+  engineResolve?.(new Error(message)); engineResolve = null;
   phase = 'idle'; $('download').hidden = true; $('model-picker').hidden = false;
   status(message, true); controls();
 }
@@ -205,9 +300,8 @@ function animateLevel() {
   animation = requestAnimationFrame(animateLevel);
 }
 
-async function startRecording() {
+async function startRecording(file) {
   if (phase !== 'idle') return;
-  if (!engineReady) { loadEngine(); return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
   if (cursor >= words.length) resetSession();
   phase = 'starting'; controls(); status('Allow microphone access to begin.');
@@ -215,6 +309,9 @@ async function startRecording() {
   try {
     context = new AudioContext();
     await context.resume();
+    // Resume from the original click, then await initialization in this same flow.
+    if (!engineReady) await loadEngine(file);
+    phase = 'starting'; controls(); status('Allow microphone access to begin.');
     const request = navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     let abandoned = false;
     request.then(value => { if (abandoned) value.getTracks().forEach(track => track.stop()); }, () => {});
@@ -278,11 +375,20 @@ async function stopRecording() {
 }
 
 $('record').addEventListener('click', () => phase === 'recording' ? void stopRecording() : void startRecording());
-$('model-file').addEventListener('change', event => { const file = event.target.files[0]; if (file) loadEngine(file); event.target.value = ''; });
+$('model-file').addEventListener('change', event => { const file = event.target.files[0]; if (file) void startRecording(file); event.target.value = ''; });
 $('reset').addEventListener('click', async () => { await stopRecording(); resetSession(); });
 $('surah').addEventListener('change', selectChapter);
-$('from').addEventListener('change', () => { if (Number($('to').value) < Number($('from').value)) $('to').value = $('from').value; renderPassage(); });
-$('to').addEventListener('change', () => { if (Number($('from').value) > Number($('to').value)) $('from').value = $('to').value; renderPassage(); });
+$('from').addEventListener('change', () => { if (Number($('to').value) < Number($('from').value)) $('to').value = $('from').value; view = 'passage'; renderPassage(); });
+$('to').addEventListener('change', () => { if (Number($('from').value) > Number($('to').value)) $('from').value = $('to').value; view = 'passage'; renderPassage(); });
+$('page-form').addEventListener('submit', event => { event.preventDefault(); openPage(Number($('page').value)); });
+$('previous-page').addEventListener('click', () => openPage(currentPage - 1));
+$('next-page').addEventListener('click', () => openPage(currentPage + 1));
+$('search-form').addEventListener('submit', searchPassage);
+$('view').addEventListener('change', () => {
+  view = $('view').value;
+  if (view === 'mushaf') currentPage = layouts[`${chapter.id}:${$('from').value}`][1][0][0];
+  renderPassage();
+});
 function setMode(memory) {
   memoryMode = memory; revealed = false;
   $('read-mode').setAttribute('aria-pressed', String(!memory)); $('memory-mode').setAttribute('aria-pressed', String(memory));
@@ -293,7 +399,7 @@ function setMode(memory) {
 $('read-mode').addEventListener('click', () => setMode(false));
 $('memory-mode').addEventListener('click', () => setMode(true));
 $('reveal').addEventListener('click', () => { revealed = !revealed; $('reveal').textContent = revealed ? 'Hide text' : 'Reveal text'; paint(); });
-for (const [id, delta] of [['smaller', -3], ['larger', 3]]) $(id).addEventListener('click', () => { fontSize = Math.min(58, Math.max(25, fontSize + delta)); document.documentElement.style.setProperty('--quran-size', `${fontSize}px`); });
+for (const [id, delta] of [['smaller', -3], ['larger', 3]]) $(id).addEventListener('click', () => { fontSize = Math.min(58, Math.max(25, fontSize + delta)); document.documentElement.style.setProperty('--quran-size', `${fontSize}px`); fitMushafLines(); });
 $('theme').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('hafizassist-theme', dark ? 'dark' : 'light'); } catch {} });
 window.addEventListener('pagehide', () => { media?.getTracks().forEach(track => track.stop()); worker?.terminate(); void context?.close(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && phase === 'recording') void stopRecording(); });
@@ -304,15 +410,19 @@ async function init() {
     const response = await fetch(new URL('../data/quran.json', import.meta.url));
     if (!response.ok) throw new Error('Quran reference data could not be loaded. Reload the page to try again.');
     const data = await response.json();
+    const layoutResponse = await fetch(new URL('../data/mushaf-layout.json', import.meta.url));
+    if (!layoutResponse.ok) throw new Error('Mushaf page data could not be loaded. Reload the page to try again.');
+    layouts = await layoutResponse.json();
     const map = new Map();
     for (const [key, verse] of Object.entries(data.verses)) {
       const [surah, ayah] = key.split(':').map(Number);
       if (!map.has(surah)) map.set(surah, { id: surah, en: verse.suraname_en, ar: verse.suraname_ar, verses: [] });
-      map.get(surah).verses.push({ ...verse, ayah });
+      map.get(surah).verses.push({ ...verse, surah, ayah });
     }
     chapters = [...map.values()].sort((a, b) => a.id - b.id);
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
-    $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en}`, String(c.id))));
+    $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en} · ${c.ar}`, String(c.id))));
+    $('surah-names').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.ar}`, c.en)));
     selectChapter();
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }

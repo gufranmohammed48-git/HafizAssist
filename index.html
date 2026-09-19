@@ -2,28 +2,57 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#174f42"><meta name="description" content="A quiet space to practice Quran memorization, with private, on-device recitation tracking.">
+  <meta name="theme-color" content="#174f42"><meta name="description" content="Practice Quran memorization with private, offline recitation tracking and a full Mushaf.">
   <title>HafizAssist · Your daily companion for hifz</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
-  <header class="header"><a href="./" class="brand"><span class="brand-mark">۞</span><span>Hafiz<span class="brand-light">Assist</span></span></a><span class="header-caption">A little every day. A connection for life.</span><button class="icon-button" id="theme" aria-label="Switch color theme">◐</button><span class="app-version" aria-label="Application version 4" title="Loaded application version">V4</span></header>
+  <header class="header">
+    <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
+    <a href="./" class="brand">Hafiz<span>Assist</span></a>
+    <p>A little every day. A connection for life.</p>
+    <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
+    <span class="app-version" aria-label="Application version 5" title="Loaded application version">V5</span>
+  </header>
   <main>
-    <div class="intro"><div><div class="eyebrow">YOUR DAILY COMPANION FOR HIFZ</div><h1>Make room for the Quran.</h1><p>A quiet space to recite, remember, and reconnect.</p></div><div class="private-badge"><span class="status-dot"></span> On-device & private</div></div>
-    <div class="workspace">
-      <aside class="sidebar">
-        <section class="card setup"><div class="section-heading"><span class="small-icon">▤</span><h2>Your practice</h2></div><label for="surah">SURAH</label><select id="surah" disabled><option>Loading Quran…</option></select><div class="range"><div><label for="from">FROM AYAH</label><select id="from" disabled></select></div><div><label for="to">TO AYAH</label><select id="to" disabled></select></div></div><div class="divider"></div><label>PRACTICE MODE</label><div class="segmented" role="group" aria-label="Practice mode"><button id="read-mode" aria-pressed="true">Read along</button><button id="memory-mode" aria-pressed="false">From memory</button></div><p class="hint" id="mode-hint">Follow the words as you recite at your own pace.</p><label for="sensitivity">MATCH SENSITIVITY</label><select id="sensitivity"><option value="balanced">Balanced</option><option value="gentle">Gentle</option><option value="strict">Strict</option></select><label class="toggle-row"><span>Follow current ayah</span><input id="follow" type="checkbox" checked></label></section>
-        <section class="card session"><div class="section-heading"><span class="small-icon">◷</span><h2>This session</h2></div><div class="session-stats"><div><strong id="time">00:00</strong><span>Time reciting</span></div><div><strong id="matched">0</strong><span>Words matched</span></div></div><div class="progress-label"><span>Passage progress</span><span id="percent">0%</span></div><progress id="progress" value="0" max="100"></progress><p class="hint" id="progress-hint">One ayah at a time.</p></section>
-        <div class="gentle-note"><span>✧</span><p>Consistency begins with showing up.<br>Let this be your moment.</p></div>
-      </aside>
-      <section class="reading-column">
-        <article class="card reader"><div class="reader-toolbar"><span><span class="status-dot"></span> <span id="reader-state">READY WHEN YOU ARE</span></span><div><button class="text-button" id="reveal" hidden>Reveal text</button><button class="icon-button" id="smaller" aria-label="Decrease Quran text size">A−</button><button class="icon-button" id="larger" aria-label="Increase Quran text size">A+</button></div></div><div class="surah-heading"><div class="surah-ornament">✧</div><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Al-Fātiḥah <span>·</span> The opening</p></div><div class="ayahs" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div><div class="reader-footer"><span id="passage-label">Preparing Quran text</span><div class="legend"><span><i class="green"></i>Matched</span><span><i class="amber"></i>Review</span><span><i class="gray"></i>Upcoming</span></div></div></article>
-        <section class="card recorder" aria-label="Recitation controls"><div class="recorder-main"><button id="record" class="record-button" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span id="record-label">Start reciting</span></button><div class="waveform" id="waveform" aria-hidden="true"></div><button class="text-button" id="reset">↺ Reset</button></div><p id="status" role="status" aria-live="polite">Choose a passage, then start when you’re ready.</p><progress id="download" max="100" value="0" hidden aria-label="Model loading progress"></progress><div id="model-picker" hidden><p>Select your downloaded <code>zipformer_p_arabic_v3.int8.onnx</code> file. It stays on this device.</p><input type="file" id="model-file" accept=".onnx" aria-label="Select downloaded ONNX model"></div></section>
-        <p class="privacy-note">⌾ Your voice stays on your device. No recordings are saved or uploaded.</p>
-        <details class="card history"><summary>Recent practice <span>Saved on this device</span></summary><div id="history-list"></div></details>
-      </section>
-    </div>
-    <footer><p>Automatic tracking can be wrong. Tajweed feedback does not replace a qualified teacher.</p><p>Made for your journey with the Quran. <a href="./licenses/NOTICE.md" target="_blank" rel="noopener">Credits & licenses ↗</a></p></footer>
+    <section class="card practice" aria-label="Practice and navigation">
+      <div class="section-heading"><h1>Your daily Quran practice</h1><span class="private-badge"><span class="status-dot"></span> On-device &amp; private</span></div>
+      <div class="navigation">
+        <form id="search-form"><label for="search">FIND SURAH OR VERSE</label><div class="input-group"><input id="search" type="search" list="surah-names" placeholder="Al-Baqarah, البقرة, or 2:255" autocomplete="off" disabled><button id="search-go" type="submit" disabled>Find</button></div><datalist id="surah-names"></datalist></form>
+        <div><label for="surah">SURAH</label><select id="surah" disabled><option>Loading Quran…</option></select></div>
+        <form id="page-form"><label for="page">MUSHAF PAGE · 1–604</label><div class="input-group"><button id="previous-page" type="button" aria-label="Previous page" disabled>‹</button><input id="page" type="number" min="1" max="604" value="1" required disabled><button id="page-go" type="submit" disabled>Go</button><button id="next-page" type="button" aria-label="Next page" disabled>›</button></div></form>
+      </div>
+      <div class="settings">
+        <div><label for="view">VIEW</label><select id="view" disabled><option value="mushaf">Mushaf page</option><option value="passage">Ayah range</option></select></div>
+        <div><label for="from">FROM AYAH</label><select id="from" disabled></select></div>
+        <div><label for="to">TO AYAH</label><select id="to" disabled></select></div>
+        <div class="mode"><label>PRACTICE MODE</label><div class="segmented" role="group" aria-label="Practice mode"><button id="read-mode" aria-pressed="true">Read along</button><button id="memory-mode" aria-pressed="false">From memory</button></div></div>
+        <div><label for="sensitivity">MATCH SENSITIVITY</label><select id="sensitivity"><option value="balanced">Balanced</option><option value="gentle">Gentle</option><option value="strict">Strict</option></select></div>
+        <label class="toggle-row"><input id="follow" type="checkbox" checked> Follow recitation</label>
+      </div>
+      <p class="hint" id="mode-hint">Follow the words as you recite at your own pace.</p>
+      <div class="recorder" aria-label="Recitation controls">
+        <div class="recorder-main">
+          <button id="record" class="record-button" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span id="record-label">Start reciting</span></button>
+          <div class="waveform" id="waveform" aria-hidden="true"></div>
+          <div class="session-stats"><span><strong id="time">00:00</strong> reciting</span><span><strong id="matched">0</strong> words matched</span><span id="percent">0%</span></div>
+          <button class="text-button" id="reset">↺ Reset</button>
+        </div>
+        <progress id="progress" value="0" max="100" aria-label="Passage progress"></progress>
+        <div class="status-row"><p id="status" role="status" aria-live="polite">Choose a passage, then start when you’re ready.</p><p class="hint" id="progress-hint">One ayah at a time.</p></div>
+        <progress id="download" max="100" value="0" hidden aria-label="Model loading progress"></progress>
+        <div id="model-picker" hidden><p>Select your downloaded <code>zipformer_p_arabic_v3.int8.onnx</code> file. It stays on this device.</p><input type="file" id="model-file" accept=".onnx" aria-label="Select downloaded ONNX model"></div>
+      </div>
+    </section>
+    <div class="reader-toolbar"><span><span class="status-dot"></span> <span id="reader-state">READY WHEN YOU ARE</span></span><div><button class="text-button" id="reveal" hidden>Reveal text</button><button class="icon-button" id="smaller" aria-label="Decrease Quran text size">A−</button><button class="icon-button" id="larger" aria-label="Increase Quran text size">A+</button></div></div>
+    <article class="reader" aria-label="Mushaf">
+      <div class="surah-heading"><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Preparing Quran text</p></div>
+      <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>
+      <div class="reader-footer"><span id="passage-label">Preparing Quran text</span><div class="legend"><span><i class="green"></i>Matched</span><span><i class="amber"></i>Review</span><span><i class="gray"></i>Upcoming</span></div></div>
+    </article>
+    <p class="privacy-note">Your voice stays on your device. No recordings are saved or uploaded.</p>
+    <details class="card history"><summary>Recent practice <span>Saved on this device</span></summary><div id="history-list"></div></details>
+    <footer><p>Automatic tracking can be wrong. Tajweed feedback does not replace a qualified teacher.</p><p>Made for your journey with the Quran. <a href="./licenses/NOTICE.md" target="_blank" rel="noopener">Credits &amp; licenses ↗</a></p></footer>
   </main>
   <script type="module" src="./src/app.js"></script>
 </body>

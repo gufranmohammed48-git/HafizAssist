@@ -34,7 +34,15 @@ Source: https://github.com/k2-fsa/sherpa-onnx
 
 The JS/WASM distribution in this repository is the compatible build supplied by ReciteQuran. Sherpa ONNX is licensed under Apache 2.0; its license is reproduced in `sherpa-onnx.txt`. The ReciteQuran wrapper's additional terms remain applicable. The WebAssembly runtime incorporates its upstream inference dependencies; retain applicable notices when replacing or rebuilding it.
 
-## 21st.dev design reference
+## Mushaf layout and header artwork
+
+`public/data/mushaf-layout.json` contains page, line, and juz metadata retrieved on 2026-09-19 from the Quran.com API (`https://api.quran.com/api/v4/verses/by_chapter/{chapter}?words=true&word_fields=line_number&per_page=300`). Only layout coordinates are retained; displayed glyphs and speech reference data remain from ReciteQuran. Quran.com source: https://github.com/quran. The metadata is bundled so navigation does not require runtime requests to Quran.com.
+
+Quran.com's combined word positions are expanded at 2:181 position 3, 8:6 position 4, 13:37 position 8, and 37:130 position 3 to match the existing phoneme word boundaries. Both split words retain the original page/line coordinates.
+
+The centered Mushaf styling and `public/assets/bismillah.png` are adapted/copied from the repository owner's local Desktop-HafizAssist project at their request.
+
+## 21st.dev waveform reference
 
 WaveformPlayer by ruixen.ui: https://21st.dev/@ruixen.ui/components/waveform-player
 

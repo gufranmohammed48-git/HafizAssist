@@ -12,9 +12,9 @@ node scripts/serve.mjs
 
 Open **http://localhost:5173**. Do not open `index.html` directly: microphone capture, modules, and the speech worker require a local server or HTTPS.
 
-1. Choose a surah and an inclusive ayah range (the first ten ayahs are selected by default for longer surahs).
-2. Press **Start reciting** to load the model. The initial setup can take a while.
-3. Once the engine is ready, press **Start reciting** again and allow the microphone.
+1. Choose a Mushaf page (1–604), select/search a surah, or enter a verse reference such as `2:255`. To practice a custom passage, change the inclusive **From ayah / To ayah** range.
+2. Press **Start reciting** once. It loads the model and continues directly into microphone setup.
+3. Allow microphone access. The first model download can take a while; subsequent visits open the saved copy and initialize the engine again without downloading the weights.
 4. Recite the selected passage. Green means a phonetic match; amber means a word to review, not a proven mistake.
 5. Stop to pause and save a local session summary. Select any word while stopped to restart there. **Reset** clears the current session, not history.
 
@@ -69,7 +69,7 @@ Nothing has been committed, pushed, or deployed by this implementation.
 
 The far-right header badge starts at **V1**. Every subsequent delivered change increments that number, including nonvisual fixes. `index.html` and the matching offline cache version in `public/sw.js` must be updated together; the repository rule is in `AGENTS.md`.
 
-The current release is **V4**, restricting Cloudflare Workers deployment assets to the built dist directory. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
+The current release is **V5**: single-click recording startup, explicit saved-model loading status, and a centered Mushaf with all controls above it. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
 
 ## Architecture
 
@@ -78,6 +78,8 @@ The current release is **V4**, restricting Cloudflare Workers deployment assets 
 - `public/audio-worklet.js`: continuous microphone resampling to 16 kHz mono PCM in 320 ms chunks.
 - `public/recognizer-worker.js`: model loading/cache, speech segments, Sherpa inference, bounded processing backlog.
 - `public/data/quran.json`: canonical per-word phonemes and HafsSmart glyph text for all 114 surahs.
+- `public/data/mushaf-layout.json`: bundled Quran.com page/line metadata for all 6,236 verses. Each verse key maps to `[juz, [[page, line], ...]]`, including its ending ayah marker. Four combined Quran.com words are split to match the existing phoneme dataset; see the attribution notice.
+- `public/assets/bismillah.png`: header artwork copied from the owner's Desktop-HafizAssist project.
 - `public/vendor`: the reference project's compatible Sherpa JS/WASM bundle.
 - `public/sw.js` and `src/offline.js`: versioned offline application cache and readiness messages; the model cache is preserved across application upgrades.
 
@@ -93,4 +95,4 @@ Quran data, HafsSmart font, and the compatible browser runtime were sourced from
 
 ## Current verification status
 
-Implementation only. No builds, browser tests, microphone sessions, or recognition accuracy tests were run, following the repository owner's preference. The reference site and source files were inspected. Real-device recitation is still needed before claiming the tracking is working reliably. The desktop HafizAssist Mushaf layout and advanced features are reserved for the next iteration.
+V5's requested cache check ran the actual worker model loader with the real 72,705,392-byte local model, mocked Cache Storage, and a fresh worker context representing refresh. The initial load downloaded and saved once; the fresh context reused that cache with all network access disabled, making no new request and no cache rewrite. This checks loader logic, not a real browser's storage persistence or eviction policy. No builds, browser tests, microphone sessions, or recognition accuracy tests were run. Real-device recitation is still needed before claiming the tracking is working reliably.

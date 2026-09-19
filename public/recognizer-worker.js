@@ -37,12 +37,17 @@ async function loadModel(file) {
   // Cache is a convenience only: denial/quota exhaustion must not block practice.
   let cache;
   try { cache = await caches.open('hafizassist-model-v1'); } catch {}
-  let response;
+  let response, fromCache = false;
   if (file) {
     if (file.size !== 72705392) throw new Error('Please select the 72.7 MB INT8 v3 model, not the full-size model.');
     response = new Response(file, { headers: { 'Content-Length': String(file.size) } });
   } else {
-    response = await cache?.match(modelUrl);
+    try { response = await cache?.match(modelUrl); } catch {}
+    if (response && (!response.ok || Number(response.headers.get('Content-Length')) !== 72705392)) {
+      try { await cache?.delete(modelUrl); } catch {}
+      response = null;
+    }
+    fromCache = Boolean(response);
     if (!response) {
       try {
         const sourceUrl = await downloadUrl();
@@ -64,13 +69,13 @@ async function loadModel(file) {
     if (done) break;
     chunks.push(value); loaded += value.length;
     if (loaded > 72705392) { await reader.cancel(); throw new Error('The hosted model is too large. Upload zipformer_p_arabic_v3.int8.onnx (72,705,392 bytes).'); }
-    send('progress', { value: Math.min(95, loaded / total * 95), message: `Loading speech model · ${Math.round(loaded / 1e6)} MB` });
+    send('progress', { value: Math.min(95, loaded / total * 95), message: `${fromCache ? 'Opening saved model — no download' : file ? 'Reading selected model' : 'Downloading speech model'} · ${Math.round(loaded / 1e6)} MB` });
   }
   if (loaded !== 72705392) { const error = new Error('Model is missing or incomplete. Select the downloaded INT8 v3 ONNX file.'); error.needsModel = true; throw error; }
   const bytes = new Uint8Array(loaded); let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
   chunks.length = 0;
-  if (cache) { try { await cache.put(modelUrl, new Response(bytes, { headers: { 'Content-Length': String(loaded) } })); } catch {} }
+  if (cache && !fromCache) { try { await cache.put(modelUrl, new Response(bytes, { headers: { 'Content-Length': String(loaded) } })); } catch {} }
   return bytes;
 }
 
