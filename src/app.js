@@ -24,6 +24,35 @@ let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
 let scrollFrame;
+let micNoticeTimer, pendingMicNotice = '';
+function hideMicNotice() {
+  clearTimeout(micNoticeTimer); pendingMicNotice = '';
+  const notice = $('mic-notice');
+  if (notice.hidePopover && notice.matches(':popover-open')) notice.hidePopover();
+  notice.hidden = true;
+}
+function scheduleMicNoticeDismissal() {
+  clearTimeout(micNoticeTimer);
+  const notice = $('mic-notice');
+  if (!document.hidden && !notice.hidden && !notice.matches(':hover') && !notice.contains(document.activeElement))
+    micNoticeTimer = setTimeout(hideMicNotice, 7000);
+}
+function showMicNotice(message) {
+  hideMicNotice();
+  pendingMicNotice = message;
+  if (document.hidden) return;
+  const notice = $('mic-notice');
+  $('mic-notice-message').textContent = message;
+  notice.hidden = false;
+  if (notice.showPopover) notice.showPopover();
+  else ($('voice-dialog').open ? $('voice-dialog') : document.body).append(notice);
+  scheduleMicNoticeDismissal();
+}
+$('mic-notice-close').addEventListener('click', hideMicNotice);
+$('mic-notice').addEventListener('pointerenter', () => clearTimeout(micNoticeTimer));
+$('mic-notice').addEventListener('focusin', () => clearTimeout(micNoticeTimer));
+$('mic-notice').addEventListener('pointerleave', scheduleMicNoticeDismissal);
+$('mic-notice').addEventListener('focusout', () => queueMicrotask(scheduleMicNoticeDismissal));
 let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
@@ -57,6 +86,21 @@ function status(message, error = false) {
   $('status').hidden = voiceSearch || !(error || ['loading', 'starting'].includes(phase));
 }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
+function showSearchLockTip() {
+  if (!$('search-lock-info').hidden) $('search-lock-tip').hidden = false;
+}
+function hideSearchLockTip() { $('search-lock-tip').hidden = true; }
+$('search-lock-info').addEventListener('pointerenter', showSearchLockTip);
+$('search-lock-info').addEventListener('focus', showSearchLockTip);
+$('search-lock-info').addEventListener('click', showSearchLockTip);
+$('search-lock-info').addEventListener('pointerleave', () => {
+  if (document.activeElement !== $('search-lock-info')) hideSearchLockTip();
+});
+$('search-lock-info').addEventListener('blur', hideSearchLockTip);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideSearchLockTip(); });
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('.search-surah-row')) hideSearchLockTip();
+});
 function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
   $('voice-open').disabled = !chapter || locked();
@@ -65,6 +109,15 @@ function controls() {
   $('voice-record').textContent = phase === 'recording' ? 'Find verse' : busy ? 'Please wait…' : 'Start voice search';
   $('voice-record').classList.toggle('listening', voiceSearch && phase === 'recording');
   for (const id of ['search', 'search-go', 'surah']) $(id).disabled = locked() || !chapter;
+  const searchLocked = locked() || !chapter;
+  $('search-lock-info').hidden = !searchLocked;
+  $('search-lock-tip').textContent = ({
+    recording: 'Search is paused while the microphone is on. Press the red microphone button to stop reciting, then search or choose a surah.',
+    loading: 'Search is paused while the speech model loads. Once recitation starts, stop the microphone to change passages.',
+    starting: 'Search is paused while the microphone starts. Stop reciting before changing passages.',
+    stopping: 'Finishing recognition. Search will be available again in a moment.',
+  })[phase] || 'Search will be available when the Quran text has loaded.';
+  if (!searchLocked) hideSearchLockTip();
   $('previous-page').disabled = locked() || currentPage <= 1;
   $('next-page').disabled = locked() || currentPage >= 604;
   $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase);
@@ -427,6 +480,7 @@ async function releaseAudio() {
   $('record').style.removeProperty('--voice-glow');
 }
 async function failEngine(message) {
+  const interrupted = phase === 'recording' || phase === 'stopping';
   debug.log('engine-error', { message, snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
   clearTimeout(workerTimer); worker?.terminate(); worker = null; engineReady = false;
@@ -435,6 +489,7 @@ async function failEngine(message) {
   finishResolve?.(new Error(message)); finishResolve = null;
   flushResolve?.(); flushResolve = null;
   await releaseAudio();
+  if (interrupted) showMicNotice(message);
   engineResolve?.(new Error(message)); engineResolve = null;
   phase = 'idle'; $('download').hidden = true; $('model-picker').hidden = false;
   status(message, true); controls();
@@ -451,6 +506,7 @@ function animateLevel() {
 
 async function startRecording(file) {
   if (phase !== 'idle') return;
+  hideMicNotice();
   debug.log('start-request', { page: currentPage, cursor, engineReady });
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
   if (!voiceSearch && cursor >= words.length) resetSession();
@@ -493,7 +549,9 @@ async function startRecording(file) {
       if (pendingChunks > 30) { failEngine('This device is processing audio too slowly. Close other tabs, then try a shorter passage.'); return; }
       worker.postMessage({ type: 'audio', samples: data.samples, sessionId }, [data.samples.buffer]);
     };
-    media.getAudioTracks()[0].onended = () => { if (phase === 'recording') void stopRecording(); };
+    media.getAudioTracks()[0].onended = () => {
+      if (phase === 'recording') void stopRecording('Your browser or device ended microphone access. Start the microphone again when you’re ready.');
+    };
     source.connect(analyser); source.connect(capture); capture.connect(mute); mute.connect(context.destination);
     phase = 'recording'; if (!voiceSearch) { startedAt = Date.now(); savedThisRun = false; } controls(); animateLevel();
     status(voiceSearch ? 'Recite any passage, then press Find verse.' : 'Listening. Recite the highlighted passage at your own pace.');
@@ -505,10 +563,10 @@ async function startRecording(file) {
   }
 }
 
-async function stopRecording() {
+async function stopRecording(reason = '') {
   if (stopPromise) return stopPromise;
   if (phase !== 'recording') return;
-  debug.log('stop-request', { snapshot: debugSnapshot() });
+  debug.log('stop-request', { reason: reason || 'user', snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
   if (!voiceSearch) { elapsed += (Date.now() - startedAt) / 1000; startedAt = 0; }
   stopPromise = (async () => {
@@ -519,6 +577,7 @@ async function stopRecording() {
         capture.port.postMessage('flush');
       });
       await releaseAudio();
+      if (reason) showMicNotice(reason);
       if (!worker) return;
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => { finishResolve = null; reject(new Error('Finishing recognition timed out. Your microphone is off. Please reload.')); }, 20000);
@@ -620,7 +679,12 @@ $('visibility').addEventListener('click', () => {
 });
 $('theme').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('hafizassist-theme', dark ? 'dark' : 'light'); } catch {} });
 window.addEventListener('pagehide', () => { media?.getTracks().forEach(track => track.stop()); worker?.terminate(); void context?.close(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && phase === 'recording') void stopRecording(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearTimeout(micNoticeTimer);
+    if (phase === 'recording') void stopRecording('Recitation paused because the page was hidden. Start the microphone again to continue.');
+  } else if (pendingMicNotice) showMicNotice(pendingMicNotice);
+});
 
 async function init() {
   renderHistory();

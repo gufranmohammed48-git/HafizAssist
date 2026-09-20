@@ -10,11 +10,13 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 16" title="Loaded application version">V16</span>
+    <span class="app-version" aria-label="Application version 18" title="Loaded application version">V18</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
       <div class="search-surah-row">
+      <button id="search-lock-info" type="button" aria-label="Why search is unavailable" aria-describedby="search-lock-tip" hidden></button>
+      <div id="search-lock-tip" role="tooltip" hidden></div>
       <button class="icon-button voice-open" id="voice-open" type="button" aria-label="Find a verse by voice" title="Find a verse by voice" aria-haspopup="dialog" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 9v2m3-5v8m3-5v2"/></svg></button>
       <div class="surah-picker"><label class="sr-only" for="surah">Select surah by number, English name, or Arabic name</label><select id="surah" disabled><option>Loading surahs…</option></select></div>
       <form id="search-form" class="unified-search" role="search">
@@ -73,6 +75,10 @@
     <div id="voice-results" aria-label="Matching verses"></div>
     <p class="hint">Uses your saved speech model. Your voice stays on this device.</p>
   </dialog>
+  <div id="mic-notice" popover="manual" hidden>
+    <div role="status" aria-live="polite" aria-atomic="true"><strong>Microphone off</strong><p id="mic-notice-message"></p></div>
+    <button id="mic-notice-close" class="icon-button" type="button" aria-label="Dismiss microphone notification">×</button>
+  </div>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>

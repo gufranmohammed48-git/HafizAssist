@@ -108,3 +108,11 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .font-controls{display:flex;justify-self:end;gap:2px;border:1px solid var(--border);border-radius:9px;background:var(--paper)}
 .font-controls button{min-width:34px;padding:6px;font-size:13px}
 @media(max-width:600px){.reader .ayahs{padding:16px 3px 22px}.mushaf-line,.opening-page .mushaf-line{column-gap:3px;line-height:1.85}.font-controls button{min-width:30px;padding:5px;font-size:12px}.surah-heading .mushaf-heading-info p{font-size:9px}.surah-heading .mushaf-heading-info h2{font-size:17px}}
+/* Disabled native inputs do not consistently receive pointer events. */
+.search-surah-row{position:relative}
+#search-lock-info{position:absolute;inset:0;z-index:2;width:100%;height:100%;border:0;border-radius:12px;padding:0;background:transparent;cursor:help}
+#search-lock-info:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+#search-lock-tip{position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:3;width:fit-content;max-width:100%;padding:10px 14px;background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px #0002;font-size:12px;line-height:1.6}
+/* Temporary microphone-stop notice; does not move the Mushaf or take focus. */
+#mic-notice{position:fixed;inset:auto 16px calc(20px + env(safe-area-inset-bottom)) auto;margin:0;z-index:100;width:min(390px,calc(100vw - 32px));display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--border);border-left:4px solid #dc2626;border-radius:12px;background:var(--card);color:var(--ink);box-shadow:0 10px 40px #0003;font:13px/1.6 'Segoe UI',sans-serif}
+#mic-notice strong{font-size:14px}#mic-notice p{margin:4px 0 0}#mic-notice-close{flex:0 0 32px;min-width:32px;font-size:22px;padding:0;margin-left:auto}#mic-notice::backdrop{background:transparent;pointer-events:none}

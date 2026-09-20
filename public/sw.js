@@ -1,5 +1,5 @@
 // Increment with every delivered change; keep index.html's badge in sync.
-const VERSION = 'V16';
+const VERSION = 'V18';
 const PREFIX = `hafizassist-shell:${self.registration.scope}:`;
 const SHELL = PREFIX + VERSION;
 const url = path => new URL(path, self.registration.scope).href;
