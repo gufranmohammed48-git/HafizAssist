@@ -16,6 +16,10 @@ let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
 let elapsed = 0, startedAt = 0, memoryMode = false, fontSize = 34;
+try {
+  const savedSize = Number(localStorage.getItem('hafizassist-font-size'));
+  if (savedSize >= 24 && savedSize <= 56) fontSize = savedSize;
+} catch {}
 let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
@@ -104,19 +108,12 @@ function paint() {
 function followWord(force = false) {
   cancelAnimationFrame(scrollFrame);
   scrollFrame = requestAnimationFrame(() => {
-    const element = elements[cursor], container = $('ayahs');
+    const element = elements[cursor];
     if (!element || $('voice-dialog').open) return;
-    const box = container.getBoundingClientRect(), word = element.getBoundingClientRect();
+    const word = element.getBoundingClientRect();
     const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
-    // Use viewport rectangles: offsetTop is relative to a positioned ancestor.
-    const top = word.top - box.top + container.scrollTop;
-    const target = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, top - container.clientHeight / 3));
-    if (force || word.top < box.top + 32 || word.bottom > box.bottom - 48) {
-      container.scrollTo({ top: target, behavior });
-      const projected = box.top + top - target;
-      if (force || projected < 48 || projected + word.height > innerHeight - 64)
-        window.scrollBy({ top: projected - innerHeight / 3, behavior });
-    } else if (word.top < 48 || word.bottom > innerHeight - 64) {
+    // The Mushaf grows with its text; only the document scrolls.
+    if (force || word.top < 48 || word.bottom > innerHeight - 64) {
       window.scrollBy({ top: word.top - innerHeight / 3, behavior });
     }
   });
@@ -198,24 +195,20 @@ function renderPassage(continuing = false) {
   $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
 function fitMushafLines() {
-  // Preserve the printed page's line breaks on narrow screens and after zoom.
-  for (const line of $('ayahs').querySelectorAll('.mushaf-line')) {
-    line.style.setProperty('--quran-size', `${fontSize}px`);
-    const children = [...line.children];
-    const gap = parseFloat(getComputedStyle(line).columnGap) || 0;
-    let size = fontSize;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const needed = children.reduce((sum, child) => {
-        const style = getComputedStyle(child);
-        return sum + child.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-      }, gap * Math.max(0, children.length - 1));
-      if (needed <= line.clientWidth) break;
-      size = Math.max(10, size * (line.clientWidth - 8) / needed);
-      line.style.setProperty('--quran-size', `${size}px`);
-    }
-  }
+  // Keep one readable size. Longer lines wrap instead of silently shrinking the font.
+  $('ayahs').style.setProperty('--quran-size', `${fontSize}px`);
+  $('font-smaller').disabled = fontSize <= 24;
+  $('font-larger').disabled = fontSize >= 56;
 }
-new ResizeObserver(fitMushafLines).observe($('ayahs'));
+function changeFontSize(delta) {
+  wordInfo.hide();
+  fontSize = Math.max(24, Math.min(56, fontSize + delta));
+  try { localStorage.setItem('hafizassist-font-size', String(fontSize)); } catch {}
+  fitMushafLines();
+  if (phase === 'recording') followWord(true);
+}
+$('font-smaller').addEventListener('click', () => changeFontSize(-2));
+$('font-larger').addEventListener('click', () => changeFontSize(2));
 function fontLayoutReady() {
   fitMushafLines();
   if (cursor > 0 || phase === 'recording') followWord(true);

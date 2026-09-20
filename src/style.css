@@ -96,3 +96,15 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .surah-heading p{justify-self:end;text-align:right;min-width:0}
 .surah-heading .page-navigation{display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:12px;color:var(--muted);direction:ltr}
 @media(max-width:600px){.header{padding:10px 85px 2px}.header #theme{right:54px;top:9px}.header .app-version{right:10px;top:12px}.surah-heading{gap:6px;padding:8px 0}.surah-heading .page-navigation{gap:0;font-size:11px}.surah-heading #next-page,.surah-heading #previous-page{min-width:30px;padding:0 6px}}
+/* V16: natural word spacing and a full-height Mushaf with document scrolling. */
+.reader{border:1px solid var(--ornament);border-radius:12px;box-shadow:0 8px 30px #283a2610,inset 0 0 0 4px var(--paper),inset 0 0 0 5px var(--border)}
+.reader .ayahs{max-height:none;min-height:0;overflow:visible;padding:22px 10px 28px}
+.mushaf-line,.opening-page .mushaf-line{justify-content:center;flex-wrap:wrap;column-gap:5px;row-gap:0;white-space:normal;line-height:1.95}
+.mushaf-line .word{flex:0 0 auto;padding:0 2px}
+.bismillah-line{flex-wrap:wrap;gap:5px}
+.bismillah-line .word{font-size:var(--quran-size)}
+.mushaf-heading-info{min-width:0}
+.surah-heading .mushaf-heading-info p{text-align:left;margin-top:3px;font-size:10px;line-height:1.4}
+.font-controls{display:flex;justify-self:end;gap:2px;border:1px solid var(--border);border-radius:9px;background:var(--paper)}
+.font-controls button{min-width:34px;padding:6px;font-size:13px}
+@media(max-width:600px){.reader .ayahs{padding:16px 3px 22px}.mushaf-line,.opening-page .mushaf-line{column-gap:3px;line-height:1.85}.font-controls button{min-width:30px;padding:5px;font-size:12px}.surah-heading .mushaf-heading-info p{font-size:9px}.surah-heading .mushaf-heading-info h2{font-size:17px}}

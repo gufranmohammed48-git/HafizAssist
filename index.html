@@ -10,12 +10,13 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 15" title="Loaded application version">V15</span>
+    <span class="app-version" aria-label="Application version 16" title="Loaded application version">V16</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
       <div class="search-surah-row">
       <button class="icon-button voice-open" id="voice-open" type="button" aria-label="Find a verse by voice" title="Find a verse by voice" aria-haspopup="dialog" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 9v2m3-5v8m3-5v2"/></svg></button>
+      <div class="surah-picker"><label class="sr-only" for="surah">Select surah by number, English name, or Arabic name</label><select id="surah" disabled><option>Loading surahs…</option></select></div>
       <form id="search-form" class="unified-search" role="search">
         <label class="sr-only" for="search">Search Quran by page, chapter, verse, or surah name</label>
         <div class="input-group">
@@ -23,7 +24,6 @@
           <button id="search-go" type="submit" aria-label="Go to search result" disabled>Go <span aria-hidden="true">↵</span></button>
         </div>
       </form>
-      <div class="surah-picker"><label class="sr-only" for="surah">Select surah by number, English name, or Arabic name</label><select id="surah" disabled><option>Loading surahs…</option></select></div>
       </div>
       <p id="search-hint">💡 Try typing: <strong>4</strong> for Page 4 · <strong>s 2</strong> for Chapter 2 · <strong>2:255</strong> for Surah 2 Ayah 255 · <strong>Yasin</strong> or <strong lang="ar">يس</strong></p>
       <div class="recorder" aria-label="Recitation controls">
@@ -47,9 +47,9 @@
     </section>
     <article class="reader" aria-label="Mushaf">
       <div class="surah-heading">
-        <h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2>
+        <div class="mushaf-heading-info"><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Preparing Quran text</p></div>
         <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
-        <p id="surah-title">Preparing Quran text</p>
+        <div class="font-controls" role="group" aria-label="Quran font size"><button id="font-smaller" class="icon-button" type="button" aria-label="Decrease Quran font size" title="Smaller text">A−</button><button id="font-larger" class="icon-button" type="button" aria-label="Increase Quran font size" title="Larger text">A+</button></div>
       </div>
       <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>
       <div class="reader-footer"><span id="passage-label">Preparing Quran text</span><div class="legend"><span><i class="green"></i>Matched</span><span><i class="amber"></i>Review</span><span><i class="gray"></i>Upcoming</span></div></div>
