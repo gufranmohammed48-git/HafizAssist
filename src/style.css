@@ -1,4 +1,16 @@
 @font-face{font-family:Hafs;src:url('../data/HafsSmart.ttf') format('truetype');font-display:swap}
+.voice-open{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;border:1px solid var(--border);border-radius:50%;color:var(--green);margin-left:auto}
+.voice-open:hover{background:var(--soft)}
+#voice-dialog{width:min(560px,calc(100vw - 32px));max-height:85dvh;box-sizing:border-box;overflow:auto;background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:20px;padding:24px;box-shadow:0 24px 80px #0004}
+#voice-dialog::backdrop{background:#071f1ac0;backdrop-filter:blur(4px)}
+.voice-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.voice-heading h2{margin:0;font-size:21px}
+#voice-description,#voice-status{font-size:14px;line-height:1.7}#voice-record{padding:12px 20px;background:var(--green);color:white;border:0;border-radius:24px}
+#voice-record.listening{background:#dc2626;animation:voice-pulse 1.8s ease-in-out infinite}
+@keyframes voice-pulse{50%{box-shadow:0 0 0 7px #dc262625}}
+@media(prefers-reduced-motion:reduce){#voice-record.listening{animation:none}}
+#voice-results{display:grid;gap:10px}.voice-result{display:grid;gap:9px;width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--soft);color:var(--ink);text-align:left;white-space:normal}
+.voice-result:hover{border-color:var(--green)}.voice-result [lang=ar]{font-family:'Traditional Arabic','Segoe UI',serif;font-size:25px;line-height:1.8;text-align:right}
+@media(max-width:400px){.recorder-main{gap:7px!important}.recitation-counts{gap:7px!important}.voice-open{flex-basis:34px;width:34px;height:34px}#voice-dialog{padding:18px}}
 #word-info{position:fixed;z-index:20;width:max-content;max-width:min(360px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;white-space:pre-line;overflow-wrap:anywhere;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px #0003;font:13px/1.8 'Segoe UI',sans-serif;text-align:start}
 .continuous-hint{flex:1;text-align:right;font-size:11px;color:var(--muted);margin-right:8px}
 #record{position:relative;isolation:isolate}

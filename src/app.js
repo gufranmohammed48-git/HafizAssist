@@ -11,13 +11,15 @@ let segmentCarry = '';
 let alignmentAnchor = null;
 let pageBoundary = null;
 let reviewDetails = [], completedMatched = 0, completedReview = 0, completedPages = 0, firstPracticePage = 1;
-const wordInfo = createWordInfo(index => ({ word: words[index], state: states[index], detail: reviewDetails[index], hidden: memoryMode }));
+const wordInfo = createWordInfo(index => ({ word: words[index], state: states[index], detail: reviewDetails[index], hidden: memoryMode && !states[index] }));
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
 let elapsed = 0, startedAt = 0, memoryMode = false, fontSize = 34;
 let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
+let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
+let scrollFrame;
 let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
@@ -43,9 +45,15 @@ try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]');
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
 
 
-function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
+function status(message, error = false) { if (voiceSearch) { $('voice-status').textContent = message; $('voice-status').classList.toggle('error', error); } $('status').textContent = message; $('status').classList.toggle('error', error); }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
+  const busy = ['loading', 'starting', 'stopping'].includes(phase);
+  $('voice-open').disabled = !chapter || locked();
+  $('voice-close').disabled = voiceSearch && busy;
+  $('voice-record').disabled = busy;
+  $('voice-record').textContent = phase === 'recording' ? 'Find verse' : busy ? 'Please wait…' : 'Start voice search';
+  $('voice-record').classList.toggle('listening', voiceSearch && phase === 'recording');
   for (const id of ['search', 'search-go', 'surah']) $(id).disabled = locked() || !chapter;
   $('previous-page').disabled = locked() || currentPage <= 1;
   $('next-page').disabled = locked() || currentPage >= 604;
@@ -67,7 +75,7 @@ function paint() {
   let matched = 0, review = 0;
   for (let i = 0; i < elements.length; i++) {
     const state = states[i] || '';
-    const concealed = memoryMode;
+    const concealed = memoryMode && !state;
     elements[i].className = `word ${state} ${i === cursor ? 'next' : ''} ${concealed ? 'concealed' : ''}`;
     elements[i].setAttribute('aria-label', concealed ? `Hidden word ${words[i].position + 1}, ayah ${words[i].ayah}. Select to resume here.` : `${words[i].accessible} — ${state === 'review' ? 'needs review' : state || 'upcoming'}. Select to resume here.`);
     if (state === 'matched') matched++;
@@ -82,15 +90,33 @@ function paint() {
   if (words[cursor]) { chapter = chapters.find(c => c.id === words[cursor].surah); $('surah').value = String(chapter.id); }
   const currentAyah = words[cursor] && `${words[cursor].surah}:${words[cursor].ayah}`;
   document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', row.dataset.key === currentAyah));
-  const currentPosition = currentAyah && `${currentAyah}:${elements[cursor].offsetTop}`;
+  const currentPosition = currentAyah && `${currentPage}:${cursor}`;
   if (currentPosition && currentPosition !== lastFollowedAyah && phase === 'recording') {
-    const container = $('ayahs');
-    const top = elements[cursor].offsetTop;
-    container.scrollTo({ top: Math.max(0, top - container.clientHeight / 3), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    followWord();
   }
   lastFollowedAyah = currentPosition;
 }
 
+function followWord(force = false) {
+  cancelAnimationFrame(scrollFrame);
+  scrollFrame = requestAnimationFrame(() => {
+    const element = elements[cursor], container = $('ayahs');
+    if (!element || $('voice-dialog').open) return;
+    const box = container.getBoundingClientRect(), word = element.getBoundingClientRect();
+    const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+    // Use viewport rectangles: offsetTop is relative to a positioned ancestor.
+    const top = word.top - box.top + container.scrollTop;
+    const target = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, top - container.clientHeight / 3));
+    if (force || word.top < box.top + 32 || word.bottom > box.bottom - 48) {
+      container.scrollTo({ top: target, behavior });
+      const projected = box.top + top - target;
+      if (force || projected < 48 || projected + word.height > innerHeight - 64)
+        window.scrollBy({ top: projected - innerHeight / 3, behavior });
+    } else if (word.top < 48 || word.bottom > innerHeight - 64) {
+      window.scrollBy({ top: word.top - innerHeight / 3, behavior });
+    }
+  });
+}
 function appendWord(row, word, text) {
   const index = words.length; words.push(word);
   const button = document.createElement('button');
@@ -186,8 +212,12 @@ function fitMushafLines() {
   }
 }
 new ResizeObserver(fitMushafLines).observe($('ayahs'));
-document.fonts.ready.then(fitMushafLines);
-document.fonts.addEventListener('loadingdone', fitMushafLines);
+function fontLayoutReady() {
+  fitMushafLines();
+  if (cursor > 0 || phase === 'recording') followWord(true);
+}
+document.fonts.ready.then(fontLayoutReady);
+document.fonts.addEventListener('loadingdone', fontLayoutReady);
 function resetSession() {
   pageBoundary = null;
   wordInfo.hide(); reviewDetails = []; completedMatched = 0; completedReview = 0; completedPages = 0; firstPracticePage = currentPage;
@@ -207,8 +237,7 @@ function focusVerse(key) {
   if (index < 0) return;
   cursor = index; segmentStart = index; paint();
   debug.log('verse-selected', { key, expected: debugWord(index) });
-  // Scroll the text panel only; keep the top controls in place.
-  $('ayahs').scrollTop = Math.max(0, elements[index].offsetTop - 80);
+  followWord(true);
   status(words[index].bismillah ? 'Begin with Bismillah, then continue into the surah.' : `Ready from ayah ${key}.`);
 }
 
@@ -220,6 +249,7 @@ function openPage(page, targetKey) {
   $('surah').value = String(chapter.id);
   currentPage = page; renderPassage();
   if (targetKey) focusVerse(targetKey);
+  else followWord(true);
 }
 const searchName = value => value.normalize('NFKD').replace(/[\u0300-\u036f\u064b-\u065f\u0670ـ]/g, '').replace(/[أإآٱ]/g, 'ا').toLowerCase().replace(/[^\p{L}\p{N}:]/gu, '');
 function searchPassage(event) {
@@ -294,7 +324,14 @@ function createWorker() {
           sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null });
       }
     }
-    if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) handleRecognition(data);
+    if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) {
+      if (voiceSearch) {
+        if (data.final) voiceText = (voiceText + data.text).slice(-2000);
+        $('voice-status').textContent = 'Listening. Recite a few distinctive words, then press Find verse.';
+        if (!data.final) lastTranscript = data.text;
+        else lastTranscript = '';
+      } else handleRecognition(data);
+    }
     if (data.type === 'finished') { finishResolve?.(); finishResolve = null; }
   };
 }
@@ -419,7 +456,7 @@ async function startRecording(file) {
   if (phase !== 'idle') return;
   debug.log('start-request', { page: currentPage, cursor, engineReady });
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
-  if (cursor >= words.length) resetSession();
+  if (!voiceSearch && cursor >= words.length) resetSession();
   phase = 'starting'; controls(); status('Allow microphone access to begin.');
   let micTimer;
   try {
@@ -461,8 +498,8 @@ async function startRecording(file) {
     };
     media.getAudioTracks()[0].onended = () => { if (phase === 'recording') void stopRecording(); };
     source.connect(analyser); source.connect(capture); capture.connect(mute); mute.connect(context.destination);
-    phase = 'recording'; startedAt = Date.now(); savedThisRun = false; controls(); animateLevel();
-    status('Listening. Recite the highlighted passage at your own pace.');
+    phase = 'recording'; if (!voiceSearch) { startedAt = Date.now(); savedThisRun = false; } controls(); animateLevel();
+    status(voiceSearch ? 'Recite any passage, then press Find verse.' : 'Listening. Recite the highlighted passage at your own pace.');
   } catch (error) {
     debug.log('start-error', { name: error.name, message: error.message });
     await releaseAudio(); phase = 'idle'; controls();
@@ -476,7 +513,7 @@ async function stopRecording() {
   if (phase !== 'recording') return;
   debug.log('stop-request', { snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
-  elapsed += (Date.now() - startedAt) / 1000; startedAt = 0;
+  if (!voiceSearch) { elapsed += (Date.now() - startedAt) / 1000; startedAt = 0; }
   stopPromise = (async () => {
     try {
       if (capture) await new Promise(resolve => {
@@ -493,12 +530,74 @@ async function stopRecording() {
       });
       phase = 'idle'; controls();
       status(cursor >= words.length ? 'You reached the end of your passage. Take a moment to revisit any highlighted words.' : 'Session paused. Start again to continue, or select a word to revisit it.');
-      saveSession();
+      if (voiceSearch) findVoiceVerse();
+      else saveSession();
     } catch (error) { failEngine(error.message); }
     finally { stopPromise = null; }
   })();
   return stopPromise;
 }
+
+function findVoiceVerse() {
+  const text = voiceText + lastTranscript;
+  if (!text.trim()) { status('No speech recognized. Try again and recite several words.', true); return; }
+  if (!searchWorker) {
+    searchWorker = new Worker(new URL('./voice-search-worker.js', import.meta.url), { type: 'module' });
+    searchWorker.postMessage({ type: 'init', verses: chapters.flatMap(c => c.verses).map(v => ({ key: verseKey(v), phonemes: v.aya_phonemes_list })) });
+    searchWorker.onerror = () => { clearTimeout(searchTimer); searchWorker?.terminate(); searchWorker = null; if (voiceSearch) status('Voice search could not load. Please try again.', true); };
+    searchWorker.onmessage = ({ data }) => {
+      if (!voiceSearch || data.id !== searchRequest) return;
+      clearTimeout(searchTimer);
+      if (data.error) { status(data.error, true); return; }
+      $('voice-results').replaceChildren();
+      if (!data.results.length) { status(data.short ? 'Recite a longer phrase so we can locate the verse.' : 'No close match found. Try a longer, distinctive passage.', true); return; }
+      status('Select your verse. Similar passages may appear in several places.');
+      for (const result of data.results) {
+        const [surah, ayah] = result.key.split(':').map(Number);
+        const ch = chapters.find(c => c.id === surah), verse = ch.verses.find(v => v.ayah === ayah);
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'voice-result';
+        const label = document.createElement('span'); label.textContent = `${result.key} · ${ch.en} — ${ch.ar}`;
+        const text = document.createElement('span'); text.lang = 'ar'; text.dir = 'rtl'; text.textContent = verse.aya_text;
+        button.append(label, text); button.onclick = () => openVoiceResult(result); $('voice-results').append(button);
+      }
+      if (data.results[0].score >= .88 && (!data.results[1] || data.results[0].score - data.results[1].score > .09)) openVoiceResult(data.results[0]);
+    };
+  }
+  status('Searching the whole Quran on this device…');
+  const id = ++searchRequest;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { if (id !== searchRequest) return; searchRequest++; searchWorker?.terminate(); searchWorker = null; status('Search took too long. Please try a shorter phrase.', true); }, 30000);
+  searchWorker.postMessage({ type: 'search', id, text });
+}
+function openVoiceResult(result) {
+  if (locked()) return;
+  voiceSearch = false; searchRequest++; clearTimeout(searchTimer); $('voice-dialog').close();
+  const page = layouts[result.key][1][result.word]?.[0] || layouts[result.key][1][0][0];
+  openPage(page, result.key);
+  const index = words.findIndex(w => !w.bismillah && `${w.surah}:${w.ayah}` === result.key && w.position === result.word);
+  if (index >= 0) { cursor = index; segmentStart = index; paint(); followWord(true); }
+  status(`Found ayah ${result.key}. Start reciting to continue from the highlighted word.`);
+}
+$('voice-open').addEventListener('click', () => {
+  if (locked()) return;
+  voiceSearch = true; voiceText = ''; lastTranscript = ''; $('voice-results').replaceChildren();
+  $('voice-dialog').showModal(); controls();
+  status('Recite a few words from anywhere in the Quran. We will find the passage on this device.');
+});
+$('voice-record').addEventListener('click', async () => {
+  if (phase === 'recording') { await stopRecording(); return; }
+  if (phase !== 'idle') return;
+  voiceText = ''; lastTranscript = ''; searchRequest++; clearTimeout(searchTimer); $('voice-results').replaceChildren();
+  await startRecording();
+});
+async function closeVoiceSearch() {
+  if (['loading', 'starting', 'stopping'].includes(phase)) return;
+  if (phase === 'recording') await stopRecording();
+  voiceSearch = false; searchRequest++; clearTimeout(searchTimer); $('voice-dialog').close(); controls();
+  status('Voice search closed. Your practice position is unchanged.');
+}
+$('voice-close').addEventListener('click', closeVoiceSearch);
+$('voice-dialog').addEventListener('cancel', event => { event.preventDefault(); void closeVoiceSearch(); });
 
 $('record').addEventListener('click', () => phase === 'recording' ? void stopRecording() : void startRecording());
 $('model-file').addEventListener('change', event => { const file = event.target.files[0]; if (file) void startRecording(file); event.target.value = ''; });
@@ -516,7 +615,8 @@ $('visibility').addEventListener('click', () => {
   memoryMode = !memoryMode;
   const button = $('visibility');
   button.setAttribute('aria-pressed', String(memoryMode));
-  button.title = memoryMode ? 'Show Quran text' : 'Hide Quran text';
+  button.title = memoryMode ? 'Show all Quran text' : 'Hide upcoming words';
+  button.setAttribute('aria-label', button.title);
   $('eye-open').hidden = memoryMode;
   $('eye-closed').hidden = !memoryMode;
   paint();
@@ -544,6 +644,7 @@ async function init() {
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
     $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en} — \u2067${c.ar}\u2069`, String(c.id))));
     openPage(1);
+    cancelAnimationFrame(scrollFrame); // Keep the controls visible on initial load.
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }
 void init();

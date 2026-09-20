@@ -10,7 +10,7 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 11" title="Loaded application version">V11</span>
+    <span class="app-version" aria-label="Application version 12" title="Loaded application version">V12</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
@@ -30,7 +30,7 @@
         <div class="recorder-main">
           <button id="record" class="record-button" aria-label="Start reciting" title="Start reciting" aria-pressed="false" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button>
           <div class="recitation-counts" aria-label="Automatic word tracking counts"><span class="correct-count" title="Words matched by automatic tracking"><strong id="matched">0</strong> Correct</span><span class="mistake-count" title="Words flagged for review by automatic tracking"><strong id="mistakes">0</strong> Mistakes</span></div>
-          <span class="continuous-hint" title="Pages and chapters continue automatically while listening">Continuous recitation</span>
+          <button class="icon-button voice-open" id="voice-open" type="button" aria-label="Find a verse by voice" title="Find a verse by voice" aria-haspopup="dialog" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 9v2m3-5v8m3-5v2"/></svg></button>
           <button class="text-button" id="reset">↺ Reset</button>
         </div>
         <progress id="progress" value="0" max="100" aria-label="Passage progress"></progress>
@@ -42,7 +42,7 @@
     </section>
     <div class="reader-toolbar">
       <span class="reader-status"><span class="status-dot"></span> <span id="reader-state">READY WHEN YOU ARE</span></span>
-      <nav class="page-navigation" aria-label="Mushaf pages"><button id="previous-page" class="icon-button" aria-label="Previous page" disabled>‹</button><span id="page-label">Page 1</span><button id="next-page" class="icon-button" aria-label="Next page" disabled>›</button></nav>
+      <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
       <button class="icon-button visibility-toggle" id="visibility" type="button" aria-label="Hide Quran text" aria-pressed="false" title="Hide Quran text">
         <span id="eye-open"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
         <span id="eye-closed" hidden><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M9 5.5a11 11 0 0 1 3-.5c6.5 0 10 7 10 7a17 17 0 0 1-3 4M6 6C3.4 8.2 2 12 2 12s3.5 7 10 7a12 12 0 0 0 5-1M10 10a3 3 0 0 0 4 4"/></svg></span>
@@ -64,6 +64,14 @@
     </details>
     <footer><p>Automatic tracking can be wrong. Tajweed feedback does not replace a qualified teacher.</p><p>Made for your journey with the Quran. <a href="./licenses/NOTICE.md" target="_blank" rel="noopener">Credits &amp; licenses ↗</a></p></footer>
   </main>
+  <dialog id="voice-dialog" aria-labelledby="voice-title" aria-describedby="voice-description">
+    <div class="voice-heading"><h2 id="voice-title">Find a verse by voice</h2><button id="voice-close" class="icon-button" type="button" aria-label="Close voice search">×</button></div>
+    <p id="voice-description">Recite a few words from anywhere in the Quran, then press Find verse. A longer phrase helps distinguish repeated passages.</p>
+    <button id="voice-record" type="button">Start voice search</button>
+    <p id="voice-status" role="status" aria-live="polite"></p>
+    <div id="voice-results" aria-label="Matching verses"></div>
+    <p class="hint">Uses your saved speech model. Your voice stays on this device.</p>
+  </dialog>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
