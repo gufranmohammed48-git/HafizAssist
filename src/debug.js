@@ -11,6 +11,7 @@ export function createDebugPanel(snapshot) {
     userAgent: navigator.userAgent, language: navigator.language,
     cores: navigator.hardwareConcurrency, memoryGB: navigator.deviceMemory,
     model: 'zipformer_p_arabic_v3.int8.onnx', sensitivity: 'balanced',
+    matchingPolicy: 'earliest-supported-occurrence',
   };
   function report() {
     return { schema: 1, capturedAt: new Date().toISOString(), environment,

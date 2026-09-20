@@ -91,6 +91,14 @@ function matchWords(references, heard, config, final, diagnostic) {
       boundary += word.length;
     }
     if (!valid) { if (diagnostic) diagnostic.rejected.insufficientSupport++; continue; }
+    // Prefer the first supported occurrence, then refine its end/score only
+    // within the same overlapping span. A later, cleaner repetition must not
+    // steal audio from a subsequent verse (e.g. Rabbana in 2:128 and 2:129).
+    // Keep the existing score, tail, and sound-support requirements above.
+    if (best && i >= best.consumed) {
+      if (diagnostic) diagnostic.laterOccurrenceIgnored = { start: i, end, score };
+      break;
+    }
     best = { score, consumed: end, start: i, merged: references.length };
     if (score === 0) break; // Earliest exact occurrence wins over repetitions.
   }
@@ -101,6 +109,7 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
   const heard = normalize(transcript);
   let offset = 0, cursor = start;
   const results = [];
+  const alignments = [];
   let attempts = [];
   const probe = (references, remaining, kind, index) => {
     const diagnostic = { kind, index, references };
@@ -133,6 +142,9 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
       }
     }
     if (!match) break;
+    alignments.push({ index: cursor + skipped, skipped, merged: match.merged,
+      heardStart: offset + match.start, heardEnd: offset + match.consumed,
+      score: match.score, heardText: heard.slice(offset + match.start, offset + match.consumed) });
     for (let k = 0; k < skipped; k++) results.push({ index: cursor++, state: 'review' });
     for (let k = 0; k < match.merged; k++) results.push({ index: cursor++, state: 'matched' });
     offset += match.consumed;
@@ -146,5 +158,6 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
   return { results, cursor, consumed: offset, heard, diagnostic: {
     reason: cursor >= words.length ? 'page-complete' : offset >= heard.length ? 'waiting-for-more-phonemes' : 'no-supported-match',
     blockedIndex: cursor, remaining: heard.slice(offset).slice(-2000), attempts,
+    alignments: alignments.slice(-80),
   } };
 }
