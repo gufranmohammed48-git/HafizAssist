@@ -44,6 +44,8 @@ The centered Mushaf styling and `public/assets/bismillah.png` are adapted/copied
 
 ## 21st.dev waveform reference
 
+The V6 visibility button's compact shape, selected state, and focus treatment draw on [Toggle Button by jolbol1](https://21st.dev/@jolbol1/components/toggle-button), retrieved through the 21st.dev connector. The eye/eye-off SVGs are drawn inline for this project; no React or remote icon runtime is required.
+
 WaveformPlayer by ruixen.ui: https://21st.dev/@ruixen.ui/components/waveform-player
 
 Retrieved through the 21st.dev connector. The compact forty-bar waveform layout was adapted to vanilla JavaScript/CSS and connected to a live microphone analyser. No remote demo audio or analytics scripts are used.

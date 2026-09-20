@@ -9,10 +9,10 @@ let segmentCarry = '';
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
-let elapsed = 0, startedAt = 0, memoryMode = false, revealed = false, fontSize = 34;
+let elapsed = 0, startedAt = 0, memoryMode = false, fontSize = 34;
 let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
-let layouts = {}, currentPage = 1, view = 'mushaf';
+let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]'); if (!Array.isArray(history)) history = []; } catch {}
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
@@ -21,7 +21,7 @@ const bars = Array.from({ length: 40 }, () => { const bar = document.createEleme
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
-  for (const id of ['surah', 'from', 'to', 'sensitivity', 'page', 'page-go', 'search', 'search-go', 'view']) $(id).disabled = locked() || !chapter;
+  for (const id of ['search', 'search-go']) $(id).disabled = locked() || !chapter;
   $('previous-page').disabled = locked() || currentPage <= 1;
   $('next-page').disabled = locked() || currentPage >= 604;
   $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase);
@@ -38,7 +38,7 @@ function paint() {
   let matched = 0, review = 0;
   for (let i = 0; i < elements.length; i++) {
     const state = states[i] || '';
-    const concealed = memoryMode && !revealed && state !== 'matched';
+    const concealed = memoryMode;
     elements[i].className = `word ${state} ${i === cursor ? 'next' : ''} ${concealed ? 'concealed' : ''}`;
     elements[i].setAttribute('aria-label', concealed ? `Hidden word ${words[i].position + 1}, ayah ${words[i].ayah}. Select to resume here.` : `${words[i].accessible} — ${state === 'review' ? 'needs review' : state || 'upcoming'}. Select to resume here.`);
     if (state === 'matched') matched++;
@@ -52,7 +52,7 @@ function paint() {
   const currentAyah = words[cursor] && `${words[cursor].surah}:${words[cursor].ayah}`;
   document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', row.dataset.key === currentAyah));
   const currentPosition = currentAyah && `${currentAyah}:${elements[cursor].offsetTop}`;
-  if ($('follow').checked && currentPosition && currentPosition !== lastFollowedAyah && phase === 'recording') {
+  if (currentPosition && currentPosition !== lastFollowedAyah && phase === 'recording') {
     const container = $('ayahs');
     const top = elements[cursor].offsetTop;
     container.scrollTo({ top: Math.max(0, top - container.clientHeight / 3), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
@@ -60,16 +60,25 @@ function paint() {
   lastFollowedAyah = currentPosition;
 }
 
+function appendWord(row, word, text) {
+  const index = words.length; words.push(word);
+  const button = document.createElement('button');
+  button.className = 'word'; button.textContent = text; button.type = 'button';
+  button.addEventListener('click', () => {
+    if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
+    cursor = index; segmentStart = index; segmentCarry = '';
+    states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
+    savedThisRun = false; paint();
+    status(word.bismillah ? 'Ready from the opening Bismillah.' : `Ready from ayah ${word.surah}:${word.ayah}, word ${word.position + 1}.`);
+  });
+  row.append(button, document.createTextNode(' ')); elements.push(button);
+}
+
 function renderPassage() {
   $('ayahs').replaceChildren(); words = []; elements = [];
-  $('ayahs').classList.toggle('mushaf', view === 'mushaf');
-  $('ayahs').classList.toggle('opening-page', currentPage <= 2 && view === 'mushaf');
-  $('view').value = view;
-  $('page').value = currentPage;
-  const first = Number($('from').value), last = Number($('to').value);
-  const verses = view === 'mushaf'
-    ? chapters.flatMap(c => c.verses).filter(v => layouts[verseKey(v)][1].some(([page]) => page === currentPage))
-    : chapter.verses.filter(v => v.ayah >= first && v.ayah <= last);
+  $('ayahs').classList.toggle('opening-page', currentPage <= 2);
+  $('page-label').textContent = `Page ${currentPage}`;
+  const verses = chapters.flatMap(c => c.verses).filter(v => layouts[verseKey(v)][1].some(([page]) => page === currentPage));
   const lines = new Map();
   function pageLine(line) {
     if (!lines.has(line)) {
@@ -80,39 +89,41 @@ function renderPassage() {
   }
   for (const verse of verses) {
     const layout = layouts[verseKey(verse)][1];
-    if (view === 'mushaf' && verse.ayah === 1 && layout[0][0] === currentPage) {
+    if (verse.ayah === 1 && layout[0][0] === currentPage) {
       const heading = document.createElement('h3'); heading.className = 'mushaf-surah-header'; heading.lang = 'ar'; heading.dir = 'rtl';
       heading.textContent = `سورة ${chapters.find(c => c.id === verse.surah).ar}`; $('ayahs').append(heading);
+      // Al-Fatihah already includes Bismillah as 1:1; At-Tawbah has no opening Bismillah.
       if (![1, 9].includes(verse.surah)) {
-        const bismillah = document.createElement('img'); bismillah.src = './assets/bismillah.png'; bismillah.alt = 'Bismillah ir-Rahman ir-Raheem'; bismillah.className = 'page-bismillah'; $('ayahs').append(bismillah);
+        const row = document.createElement('div');
+        row.className = 'bismillah-line'; row.lang = 'ar'; row.dir = 'rtl';
+        const opening = chapters[0].verses[0];
+        const text = ['بِسْمِ', 'اللَّهِ', 'الرَّحْمَٰنِ', 'الرَّحِيمِ'];
+        opening.aya_phonemes_list.forEach((phoneme, position) => {
+          appendWord(row, { surah: verse.surah, ayah: 1, position, bismillah: true,
+            phoneme: normalize(phoneme), accessible: text[position] }, text[position]);
+        });
+        $('ayahs').append(row);
       }
     }
-    const row = document.createElement('div'); row.className = 'ayah'; row.dataset.key = verseKey(verse); row.lang = 'ar'; row.dir = 'rtl';
-    // HafsSmart glyphs preserve the source's exact per-word text mapping.
+    // Preserve the source's exact per-word glyph and phoneme mapping.
     const glyphs = verse.aya_ui.trim().split(/\s+/u); glyphs.pop();
     const readable = verse.aya_text.trim().split(/\s+/u);
     verse.aya_phonemes_list.forEach((phoneme, position) => {
-      if (view === 'mushaf' && layout[position][0] !== currentPage) return;
-      const index = words.length;
-      const word = { surah: verse.surah, ayah: verse.ayah, position, phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}` };
-      words.push(word);
-      const button = document.createElement('button'); button.className = 'word'; button.textContent = glyphs[position] || readable[position] || '…'; button.type = 'button';
-      button.addEventListener('click', () => {
-        if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
-        cursor = index; segmentStart = index; segmentCarry = '';
-        states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
-        savedThisRun = false; paint(); status(`Ready from ayah ${word.ayah}, word ${word.position + 1}.`);
-      });
-      (view === 'mushaf' ? pageLine(layout[position][1]) : row).append(button, document.createTextNode(' ')); elements.push(button);
+      if (layout[position][0] !== currentPage) return;
+      appendWord(pageLine(layout[position][1]), { surah: verse.surah, ayah: verse.ayah, position,
+        phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`
+      }, glyphs[position] || readable[position] || '…');
     });
-    const number = document.createElement('span'); number.className = 'ayah-number'; number.textContent = arabicNumber.format(verse.ayah); number.setAttribute('aria-label', `Ayah ${verse.ayah}`);
-    if (view === 'mushaf') { if (layout.at(-1)[0] === currentPage) pageLine(layout.at(-1)[1]).append(number); }
-    else { row.append(number); $('ayahs').append(row); }
+    if (layout.at(-1)[0] === currentPage) {
+      const number = document.createElement('span'); number.className = 'ayah-number';
+      number.textContent = arabicNumber.format(verse.ayah); number.setAttribute('aria-label', `Ayah ${verse.ayah}`);
+      pageLine(layout.at(-1)[1]).append(number);
+    }
   }
   const pageChapters = [...new Set(verses.map(v => v.surah))].map(id => chapters.find(c => c.id === id));
   $('surah-ar').textContent = pageChapters.map(c => c.ar).join(' · ');
-  $('surah-title').textContent = view === 'mushaf' ? `Juz ${layouts[verseKey(verses[0])][0]} · Page ${currentPage} of 604` : `${chapter.en} · ${chapter.verses.length} ayahs`;
-  $('passage-label').textContent = view === 'mushaf' ? `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}` : `SURAH ${chapter.id} · AYAHS ${first}–${last}`;
+  $('surah-title').textContent = `Juz ${layouts[verseKey(verses[0])][0]} · Page ${currentPage} of 604`;
+  $('passage-label').textContent = `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}`;
   resetSession(); $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
 function fitMushafLines() {
@@ -143,55 +154,44 @@ function resetSession() {
   $('time').textContent = '00:00'; paint();
   status('Choose a passage, then start when you’re ready.');
 }
-function selectChapter() {
-  chapter = chapters.find(c => c.id === Number($('surah').value));
-  for (const id of ['from', 'to']) {
-    $(id).replaceChildren(...chapter.verses.map(v => new Option(String(v.ayah), String(v.ayah))));
-  }
-  $('from').value = '1'; $('to').value = String(Math.min(chapter.verses.length, 10));
-  currentPage = layouts[`${chapter.id}:1`][1][0][0];
-  renderPassage(); controls();
-  if (view === 'mushaf') focusVerse(`${chapter.id}:1`);
-}
-
 function focusVerse(key) {
   const index = words.findIndex(w => `${w.surah}:${w.ayah}` === key);
   if (index < 0) return;
   cursor = index; segmentStart = index; paint();
   // Scroll the text panel only; keep the top controls in place.
   $('ayahs').scrollTop = Math.max(0, elements[index].offsetTop - 80);
-  status(`Ready from ayah ${key}.`);
+  status(words[index].bismillah ? 'Begin with Bismillah, then continue into the surah.' : `Ready from ayah ${key}.`);
 }
 
 function openPage(page, targetKey) {
   if (locked()) return;
   if (!Number.isInteger(page) || page < 1 || page > 604) { status('Enter a page number from 1 to 604.', true); return; }
-  // Synchronize the range selectors with the first (or searched) surah on this page.
   const firstVerse = chapters.flatMap(c => c.verses).find(v => targetKey ? verseKey(v) === targetKey : layouts[verseKey(v)][1].some(([p]) => p === page));
   chapter = chapters.find(c => c.id === firstVerse.surah);
-  $('surah').value = chapter.id;
-  for (const id of ['from', 'to']) $(id).replaceChildren(...chapter.verses.map(v => new Option(String(v.ayah), String(v.ayah))));
-  $('from').value = firstVerse.ayah;
-  const pageVerses = chapter.verses.filter(v => layouts[verseKey(v)][1].some(([p]) => p === page));
-  $('to').value = pageVerses.at(-1).ayah;
-  view = 'mushaf'; currentPage = page; renderPassage();
+  currentPage = page; renderPassage();
   if (targetKey) focusVerse(targetKey);
 }
 const searchName = value => value.normalize('NFKD').replace(/[\u0300-\u036f\u064b-\u065f\u0670ـ]/g, '').replace(/[أإآٱ]/g, 'ا').toLowerCase().replace(/[^\p{L}\p{N}:]/gu, '');
 function searchPassage(event) {
-  event.preventDefault(); if (locked()) return;
-  const value = $('search').value.trim().replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit));
+  event.preventDefault(); if (locked() || !chapter) return;
+  const value = $('search').value.trim()
+    .replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))
+    .replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
+  if (/^\d+$/.test(value)) { openPage(Number(value)); return; }
   const key = value.match(/^(\d+)\s*:\s*(\d+)$/);
+  const surah = value.match(/^s\s*(\d+)$/i);
   if (key) {
     const normalized = `${Number(key[1])}:${Number(key[2])}`;
     if (layouts[normalized]) { openPage(layouts[normalized][1][0][0], normalized); return; }
   } else {
     const query = searchName(value);
-    const found = chapters.find(c => String(c.id) === value || searchName(c.en) === query || searchName(c.ar) === query)
-      || (query.length > 1 && chapters.find(c => searchName(c.en).includes(query) || searchName(c.ar).includes(query)));
-    if (found) { $('surah').value = found.id; view = 'mushaf'; selectChapter(); return; }
+    const found = surah ? chapters.find(c => c.id === Number(surah[1]))
+      : ['yasin', 'yaseen', 'يس'].includes(query) ? chapters.find(c => c.id === 36)
+      : chapters.find(c => searchName(c.en) === query || searchName(c.ar) === query)
+        || (query.length > 1 && chapters.find(c => searchName(c.en).includes(query) || searchName(c.ar).includes(query)));
+    if (found) { openPage(layouts[`${found.id}:1`][1][0][0], `${found.id}:1`); return; }
   }
-  status('Search a surah name or number, or enter surah:ayah, such as 2:255.', true);
+  status('Try a page (4), chapter (s 2), verse (2:255), or surah name (Yasin / يس).', true);
 }
 
 function renderHistory() {
@@ -207,7 +207,7 @@ function renderHistory() {
 function saveSession() {
   if (savedThisRun || elapsed < 1) return;
   savedThisRun = true;
-  const entry = { surah: chapter.en, from: Number($('from').value), to: Number($('to').value), matched: states.filter(s => s === 'matched').length, review: states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
+  const entry = { surah: chapter.en, from: words[0]?.ayah, to: words.at(-1)?.ayah, matched: states.filter(s => s === 'matched').length, review: states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
   entry.passage = $('passage-label').textContent;
   history.unshift(entry); history = history.slice(0, 30);
   try { localStorage.setItem('hafizassist-history', JSON.stringify(history)); } catch { status('Session finished. Browser storage is unavailable, so history cannot be saved.'); }
@@ -233,7 +233,7 @@ function createWorker() {
     if (data.type === 'started') { startResolve?.(); startResolve = null; }
     if (data.type === 'ack') pendingChunks = Math.max(0, pendingChunks - 1);
     if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) {
-      const match = alignSegment(words, segmentStart, segmentCarry + data.text, $('sensitivity').value, data.final);
+      const match = alignSegment(words, segmentStart, segmentCarry + data.text, 'balanced', data.final);
       // CTC can revise an earlier part of its cumulative hypothesis. Once a
       // word has advanced the visible cursor, that revision must not rewind
       // the reading position or erase completed highlights.
@@ -377,29 +377,18 @@ async function stopRecording() {
 $('record').addEventListener('click', () => phase === 'recording' ? void stopRecording() : void startRecording());
 $('model-file').addEventListener('change', event => { const file = event.target.files[0]; if (file) void startRecording(file); event.target.value = ''; });
 $('reset').addEventListener('click', async () => { await stopRecording(); resetSession(); });
-$('surah').addEventListener('change', selectChapter);
-$('from').addEventListener('change', () => { if (Number($('to').value) < Number($('from').value)) $('to').value = $('from').value; view = 'passage'; renderPassage(); });
-$('to').addEventListener('change', () => { if (Number($('from').value) > Number($('to').value)) $('from').value = $('to').value; view = 'passage'; renderPassage(); });
-$('page-form').addEventListener('submit', event => { event.preventDefault(); openPage(Number($('page').value)); });
 $('previous-page').addEventListener('click', () => openPage(currentPage - 1));
 $('next-page').addEventListener('click', () => openPage(currentPage + 1));
 $('search-form').addEventListener('submit', searchPassage);
-$('view').addEventListener('change', () => {
-  view = $('view').value;
-  if (view === 'mushaf') currentPage = layouts[`${chapter.id}:${$('from').value}`][1][0][0];
-  renderPassage();
-});
-function setMode(memory) {
-  memoryMode = memory; revealed = false;
-  $('read-mode').setAttribute('aria-pressed', String(!memory)); $('memory-mode').setAttribute('aria-pressed', String(memory));
-  $('reveal').hidden = !memory; $('reveal').textContent = 'Reveal text';
-  $('mode-hint').textContent = memory ? 'Words stay hidden until matched. Reveal the text whenever you need a hint.' : 'Follow the words as you recite at your own pace.';
+$('visibility').addEventListener('click', () => {
+  memoryMode = !memoryMode;
+  const button = $('visibility');
+  button.setAttribute('aria-pressed', String(memoryMode));
+  button.title = memoryMode ? 'Show Quran text' : 'Hide Quran text';
+  $('eye-open').hidden = memoryMode;
+  $('eye-closed').hidden = !memoryMode;
   paint();
-}
-$('read-mode').addEventListener('click', () => setMode(false));
-$('memory-mode').addEventListener('click', () => setMode(true));
-$('reveal').addEventListener('click', () => { revealed = !revealed; $('reveal').textContent = revealed ? 'Hide text' : 'Reveal text'; paint(); });
-for (const [id, delta] of [['smaller', -3], ['larger', 3]]) $(id).addEventListener('click', () => { fontSize = Math.min(58, Math.max(25, fontSize + delta)); document.documentElement.style.setProperty('--quran-size', `${fontSize}px`); fitMushafLines(); });
+});
 $('theme').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('hafizassist-theme', dark ? 'dark' : 'light'); } catch {} });
 window.addEventListener('pagehide', () => { media?.getTracks().forEach(track => track.stop()); worker?.terminate(); void context?.close(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && phase === 'recording') void stopRecording(); });
@@ -421,9 +410,7 @@ async function init() {
     }
     chapters = [...map.values()].sort((a, b) => a.id - b.id);
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
-    $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en} · ${c.ar}`, String(c.id))));
-    $('surah-names').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.ar}`, c.en)));
-    selectChapter();
+    openPage(1);
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }
 void init();

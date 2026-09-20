@@ -9,28 +9,20 @@
 <body>
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
-    <a href="./" class="brand">Hafiz<span>Assist</span></a>
-    <p>A little every day. A connection for life.</p>
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 5" title="Loaded application version">V5</span>
+    <span class="app-version" aria-label="Application version 6" title="Loaded application version">V6</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
-      <div class="section-heading"><h1>Your daily Quran practice</h1><span class="private-badge"><span class="status-dot"></span> On-device &amp; private</span></div>
-      <div class="navigation">
-        <form id="search-form"><label for="search">FIND SURAH OR VERSE</label><div class="input-group"><input id="search" type="search" list="surah-names" placeholder="Al-Baqarah, البقرة, or 2:255" autocomplete="off" disabled><button id="search-go" type="submit" disabled>Find</button></div><datalist id="surah-names"></datalist></form>
-        <div><label for="surah">SURAH</label><select id="surah" disabled><option>Loading Quran…</option></select></div>
-        <form id="page-form"><label for="page">MUSHAF PAGE · 1–604</label><div class="input-group"><button id="previous-page" type="button" aria-label="Previous page" disabled>‹</button><input id="page" type="number" min="1" max="604" value="1" required disabled><button id="page-go" type="submit" disabled>Go</button><button id="next-page" type="button" aria-label="Next page" disabled>›</button></div></form>
-      </div>
-      <div class="settings">
-        <div><label for="view">VIEW</label><select id="view" disabled><option value="mushaf">Mushaf page</option><option value="passage">Ayah range</option></select></div>
-        <div><label for="from">FROM AYAH</label><select id="from" disabled></select></div>
-        <div><label for="to">TO AYAH</label><select id="to" disabled></select></div>
-        <div class="mode"><label>PRACTICE MODE</label><div class="segmented" role="group" aria-label="Practice mode"><button id="read-mode" aria-pressed="true">Read along</button><button id="memory-mode" aria-pressed="false">From memory</button></div></div>
-        <div><label for="sensitivity">MATCH SENSITIVITY</label><select id="sensitivity"><option value="balanced">Balanced</option><option value="gentle">Gentle</option><option value="strict">Strict</option></select></div>
-        <label class="toggle-row"><input id="follow" type="checkbox" checked> Follow recitation</label>
-      </div>
-      <p class="hint" id="mode-hint">Follow the words as you recite at your own pace.</p>
+      <form id="search-form" class="unified-search" role="search">
+        <label class="sr-only" for="search">Search Quran by page, chapter, verse, or surah name</label>
+        <div class="input-group">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input id="search" type="search" placeholder="Search a page, surah, or verse…" aria-describedby="search-hint" autocomplete="off" disabled>
+          <button id="search-go" type="submit" aria-label="Go to search result" disabled>Go <span aria-hidden="true">↵</span></button>
+        </div>
+        <p id="search-hint">💡 Try typing: <strong>4</strong> for Page 4 · <strong>s 2</strong> for Chapter 2 · <strong>2:255</strong> for Surah 2 Ayah 255 · <strong>Yasin</strong> or <strong lang="ar">يس</strong></p>
+      </form>
       <div class="recorder" aria-label="Recitation controls">
         <div class="recorder-main">
           <button id="record" class="record-button" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span id="record-label">Start reciting</span></button>
@@ -44,7 +36,14 @@
         <div id="model-picker" hidden><p>Select your downloaded <code>zipformer_p_arabic_v3.int8.onnx</code> file. It stays on this device.</p><input type="file" id="model-file" accept=".onnx" aria-label="Select downloaded ONNX model"></div>
       </div>
     </section>
-    <div class="reader-toolbar"><span><span class="status-dot"></span> <span id="reader-state">READY WHEN YOU ARE</span></span><div><button class="text-button" id="reveal" hidden>Reveal text</button><button class="icon-button" id="smaller" aria-label="Decrease Quran text size">A−</button><button class="icon-button" id="larger" aria-label="Increase Quran text size">A+</button></div></div>
+    <div class="reader-toolbar">
+      <span class="reader-status"><span class="status-dot"></span> <span id="reader-state">READY WHEN YOU ARE</span></span>
+      <nav class="page-navigation" aria-label="Mushaf pages"><button id="previous-page" class="icon-button" aria-label="Previous page" disabled>‹</button><span id="page-label">Page 1</span><button id="next-page" class="icon-button" aria-label="Next page" disabled>›</button></nav>
+      <button class="icon-button visibility-toggle" id="visibility" type="button" aria-label="Hide Quran text" aria-pressed="false" title="Hide Quran text">
+        <span id="eye-open"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <span id="eye-closed" hidden><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M9 5.5a11 11 0 0 1 3-.5c6.5 0 10 7 10 7a17 17 0 0 1-3 4M6 6C3.4 8.2 2 12 2 12s3.5 7 10 7a12 12 0 0 0 5-1M10 10a3 3 0 0 0 4 4"/></svg></span>
+      </button>
+    </div>
     <article class="reader" aria-label="Mushaf">
       <div class="surah-heading"><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Preparing Quran text</p></div>
       <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>

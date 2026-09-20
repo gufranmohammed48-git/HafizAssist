@@ -10,3 +10,24 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 @media(max-width:950px){.settings{grid-template-columns:1fr .65fr .65fr 1.5fr}.settings .toggle-row{grid-column:2/4}.session-stats{gap:12px}.waveform{max-width:180px}.navigation{grid-template-columns:1fr 1fr}.navigation #page-form{grid-column:1/-1;max-width:330px}.reader{padding:0 20px}}
 @media(max-width:600px){main{padding:8px 10px 20px}.header{padding:18px 75px 10px}.bismillah{width:190px}.header p{font-size:9px}.header #theme{right:58px;top:15px}.app-version{right:10px;top:18px}.practice{padding:16px 13px}.section-heading{align-items:flex-start}h1{font-size:18px}.private-badge{font-size:9px;gap:4px}.navigation{grid-template-columns:1fr;gap:12px}.navigation #page-form{grid-column:auto;max-width:none}.settings{grid-template-columns:1fr 1fr 1fr;gap:12px 9px}.settings .mode{grid-column:1/3}.settings .toggle-row{grid-column:1/-1;min-height:24px}.recorder-main{flex-wrap:wrap;gap:10px}.record-button{flex:1}.waveform{flex:1;max-width:none}.waveform i:nth-child(n+20){display:none}.session-stats{order:2;width:100%;justify-content:center}.status-row{display:block}.status-row .hint{text-align:left;margin-top:3px}.reader{padding:0 11px}.surah-heading{padding:14px 0}.surah-heading h2{font-size:19px}.surah-heading p{font-size:10px}.ayahs{padding:10px 3px 24px;max-height:75vh}.mushaf-line{gap:1px}.mushaf-line .word{padding:0 1px}.ayah-number{margin:0 4px;min-width:17px;height:20px;font-size:10px}.reader-footer{flex-wrap:wrap;font-size:8px;gap:10px}.reader-toolbar>span{font-size:8px;letter-spacing:.5px}.mushaf-surah-header{font-size:24px}.history-item{flex-direction:column;gap:4px}.history summary>span{font-size:9px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* A single search field and a compact recitation bar. */
+.header{padding-bottom:2px}.header .bismillah{margin-bottom:0}
+.practice{max-width:850px;margin:0 auto;padding:18px 22px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.unified-search .input-group{position:relative;align-items:center;gap:0;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.unified-search .input-group:focus-within{outline:2px solid var(--green);outline-offset:2px}
+.search-icon{flex-shrink:0;margin-left:15px;color:var(--muted)}
+.unified-search #search{border:0;outline:none;background:transparent;padding:15px 12px;font-size:14px;min-height:52px}
+.unified-search #search-go{flex-shrink:0;background:var(--soft);border:0;margin:6px;padding:0 15px;border-radius:8px;color:var(--green)}
+.unified-search #search-go span{margin-left:7px;opacity:.6}
+#search-hint{font-size:11px;color:var(--muted);line-height:1.9;margin:9px 2px 17px;text-wrap:pretty}
+#search-hint strong{font-weight:600;color:var(--ink)}
+.reader-toolbar{display:grid;grid-template-columns:1fr auto 1fr;gap:12px}
+.reader-toolbar .page-navigation{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--muted)}
+.reader-toolbar .visibility-toggle{justify-self:end;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid var(--border);border-radius:9px;transition:background .15s,color .15s}
+.visibility-toggle span{display:flex;align-items:center;justify-content:center}
+.visibility-toggle[aria-pressed=true]{background:var(--soft);color:var(--green);border-color:var(--green)}
+.bismillah-line{display:flex;align-items:baseline;justify-content:center;gap:clamp(4px,1vw,10px);margin:8px 0 18px;direction:rtl}
+.bismillah-line .word{font-family:'Traditional Arabic','Noto Naskh Arabic','Geeza Pro',serif;font-size:clamp(28px,4vw,40px);font-weight:400;line-height:1.9;padding:0 2px}
+@media(max-width:600px){.practice{padding:14px 13px}.header{padding-bottom:0}.unified-search #search{font-size:13px;padding:13px 8px}.unified-search #search-go{padding:0 11px}.search-icon{margin-left:10px}#search-hint{font-size:10px;margin-bottom:13px}.reader-toolbar{grid-template-columns:1fr auto;gap:8px}.reader-status{display:none}.reader-toolbar .page-navigation{justify-self:start}.bismillah-line{gap:4px}}
