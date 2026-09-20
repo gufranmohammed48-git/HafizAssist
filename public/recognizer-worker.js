@@ -134,7 +134,12 @@ self.onmessage = async ({ data }) => {
       if (!recognizer) throw new Error('The speech model is not ready.');
       sessionId = data.sessionId; newStream(); send('started');
     } else if (data.type === 'audio' && stream && data.sessionId === sessionId) {
-      stream.acceptWaveform(16000, data.samples); decode(); send('ack');
+      const began = performance.now();
+      let squares = 0, peak = 0;
+      for (const value of data.samples) { squares += value * value; peak = Math.max(peak, Math.abs(value)); }
+      stream.acceptWaveform(16000, data.samples); decode();
+      send('ack', { processMs: performance.now() - began, audioMs: data.samples.length / 16,
+        rms: Math.sqrt(squares / Math.max(1, data.samples.length)), peak });
     } else if (data.type === 'finish' && data.sessionId === sessionId) {
       if (stream) {
         stream.acceptWaveform(16000, new Float32Array(8000));

@@ -10,10 +10,11 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 6" title="Loaded application version">V6</span>
+    <span class="app-version" aria-label="Application version 8" title="Loaded application version">V8</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
+      <div class="search-surah-row">
       <form id="search-form" class="unified-search" role="search">
         <label class="sr-only" for="search">Search Quran by page, chapter, verse, or surah name</label>
         <div class="input-group">
@@ -21,16 +22,19 @@
           <input id="search" type="search" placeholder="Search a page, surah, or verse…" aria-describedby="search-hint" autocomplete="off" disabled>
           <button id="search-go" type="submit" aria-label="Go to search result" disabled>Go <span aria-hidden="true">↵</span></button>
         </div>
-        <p id="search-hint">💡 Try typing: <strong>4</strong> for Page 4 · <strong>s 2</strong> for Chapter 2 · <strong>2:255</strong> for Surah 2 Ayah 255 · <strong>Yasin</strong> or <strong lang="ar">يس</strong></p>
       </form>
+      <div class="surah-picker"><label class="sr-only" for="surah">Select surah by number, English name, or Arabic name</label><select id="surah" disabled><option>Loading surahs…</option></select></div>
+      </div>
+      <p id="search-hint">💡 Try typing: <strong>4</strong> for Page 4 · <strong>s 2</strong> for Chapter 2 · <strong>2:255</strong> for Surah 2 Ayah 255 · <strong>Yasin</strong> or <strong lang="ar">يس</strong></p>
       <div class="recorder" aria-label="Recitation controls">
         <div class="recorder-main">
-          <button id="record" class="record-button" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span id="record-label">Start reciting</span></button>
+          <button id="record" class="record-button" aria-label="Start reciting" title="Start reciting" aria-pressed="false" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button>
+          <div class="recitation-counts" aria-label="Automatic word tracking counts"><span class="correct-count" title="Words matched by automatic tracking"><strong id="matched">0</strong> Correct</span><span class="mistake-count" title="Words flagged for review by automatic tracking"><strong id="mistakes">0</strong> Mistakes</span></div>
           <div class="waveform" id="waveform" aria-hidden="true"></div>
-          <div class="session-stats"><span><strong id="time">00:00</strong> reciting</span><span><strong id="matched">0</strong> words matched</span><span id="percent">0%</span></div>
           <button class="text-button" id="reset">↺ Reset</button>
         </div>
         <progress id="progress" value="0" max="100" aria-label="Passage progress"></progress>
+        <div class="session-meta"><span><span id="time">00:00</span> reciting</span><span id="percent">0%</span></div>
         <div class="status-row"><p id="status" role="status" aria-live="polite">Choose a passage, then start when you’re ready.</p><p class="hint" id="progress-hint">One ayah at a time.</p></div>
         <progress id="download" max="100" value="0" hidden aria-label="Model loading progress"></progress>
         <div id="model-picker" hidden><p>Select your downloaded <code>zipformer_p_arabic_v3.int8.onnx</code> file. It stays on this device.</p><input type="file" id="model-file" accept=".onnx" aria-label="Select downloaded ONNX model"></div>
@@ -51,6 +55,13 @@
     </article>
     <p class="privacy-note">Your voice stays on your device. No recordings are saved or uploaded.</p>
     <details class="card history"><summary>Recent practice <span>Saved on this device</span></summary><div id="history-list"></div></details>
+    <details id="debug-panel" class="card debug-panel">
+      <summary>Recitation debug · copy a report when tracking gets stuck</summary>
+      <p>Recent recognition text, expected phonemes, match decisions, and audio levels are kept in memory. No audio is recorded or uploaded. Copy before refreshing; only the latest 300 events are retained.</p>
+      <div class="debug-actions"><button id="debug-mark" type="button">Mark stuck word</button><button id="debug-copy" type="button">Copy debug report</button><button id="debug-clear" type="button">Clear log</button></div>
+      <p id="debug-notice" role="status">Logs collect automatically, even with this section closed. Preview shows the latest 12 events; Copy includes the full log.</p>
+      <label class="sr-only" for="debug-output">Recitation diagnostic report</label><textarea id="debug-output" readonly spellcheck="false" dir="ltr"></textarea>
+    </details>
     <footer><p>Automatic tracking can be wrong. Tajweed feedback does not replace a qualified teacher.</p><p>Made for your journey with the Quran. <a href="./licenses/NOTICE.md" target="_blank" rel="noopener">Credits &amp; licenses ↗</a></p></footer>
   </main>
   <script type="module" src="./src/app.js"></script>

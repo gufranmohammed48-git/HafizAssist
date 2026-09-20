@@ -12,7 +12,7 @@ node scripts/serve.mjs
 
 Open **http://localhost:5173**. Do not open `index.html` directly: microphone capture, modules, and the speech worker require a local server or HTTPS.
 
-1. Use the single search field: `4` opens page 4, `s 2` opens chapter 2, `2:255` opens that verse, and `Yasin` or `يس` opens Ya-Sin. Page arrows move through all 604 pages.
+1. Use the single search field: `4` opens page 4, `s 2` opens chapter 2, `2:255` opens that verse, and `Yasin` or `يس` opens Ya-Sin. The adjacent dropdown lists each surah number with its English and Arabic names. Page arrows move through all 604 pages.
 2. Press **Start reciting** once. It loads the model and continues directly into microphone setup.
 3. Allow microphone access. The first model download can take a while; subsequent visits open the saved copy and initialize the engine again without downloading the weights.
 4. Recite the selected passage. Green means a phonetic match; amber means a word to review, not a proven mistake.
@@ -69,7 +69,7 @@ Nothing has been committed, pushed, or deployed by this implementation.
 
 The far-right header badge starts at **V1**. Every subsequent delivered change increments that number, including nonvisual fixes. `index.html` and the matching offline cache version in `public/sw.js` must be updated together; the repository rule is in `AGENTS.md`.
 
-The current release is **V6**: one search field, fewer controls, an eye visibility toggle, and readable, tracked Bismillah words at chapter openings. Al-Fatihah retains its first verse, and At-Tawbah has no added Bismillah. The decorative image appears only in the site header. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
+The current release is **V8**, adding local recitation diagnostics to investigate repeated-word stalls. The existing search, bilingual surah dropdown, Arabic-Indic ayah numbers, red recording mic, and word counters remain available. Correct counts matched words; Mistakes counts words flagged for review by approximate tracking. The eye toggle and readable, tracked chapter-opening Bismillah remain available. Al-Fatihah retains its first verse, and At-Tawbah has no added Bismillah. The decorative image appears only in the site header. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
 
 ## Architecture
 
@@ -98,3 +98,13 @@ Quran data, HafsSmart font, and the compatible browser runtime were sourced from
 V5's requested cache check ran the actual worker model loader with the real 72,705,392-byte local model, mocked Cache Storage, and a fresh worker context representing refresh. The initial load downloaded and saved once; the fresh context reused that cache with all network access disabled, making no new request and no cache rewrite. This checks loader logic, not a real browser's storage persistence or eviction policy. No builds, browser tests, microphone sessions, or recognition accuracy tests were run. Real-device recitation is still needed before claiming the tracking is working reliably.
 
 V6 was implemented without running tests, builds, browser checks, or microphone sessions, following the project instructions.
+
+V7: tests and builds were not run, following the project instructions.
+
+## Recitation debug (V8)
+
+The collapsible section at the bottom collects the latest 300 events in memory, even while closed. When tracking sticks, press **Mark stuck word**, stop reciting, and press **Copy debug report** before refreshing. Paste that report into the development conversation. If clipboard access fails, the full report is selected in the text area for manual copying. The regular live preview shows only the last 12 events; the copied report includes the complete retained log.
+
+Reports include app/browser/model details, microphone sample rate and processing settings (no device IDs), expected words and phonemes, raw and normalized recognition text, endpoint/carry state, candidate and visible cursor positions, rejection scores/reasons, no-rewind decisions, audio RMS/peak levels, worker processing time, matching time, and queued audio. No audio samples are stored or uploaded. Clear log erases retained events; refresh discards the in-memory log.
+
+Matching thresholds and cursor behavior are unchanged in V8. The cause of the reported stalls is not confirmed. No tests, builds, browser checks, or microphone sessions were run.

@@ -29,12 +29,13 @@ function effectiveLength(text) {
   for (let i = 0; i < text.length; i++) if (!(i && text[i] === text[i - 1] && vowel(text[i]))) count++;
   return Math.max(1, count);
 }
-function matchWords(references, heard, config, final) {
+function matchWords(references, heard, config, final, diagnostic) {
   const reference = references.join('');
   const n = reference.length, m = heard.length;
   if (!n || !m) return null;
   const effective = effectiveLength(reference);
   const limit = effective <= 3 ? config.short : effective <= 7 ? config.medium : config.limit;
+  if (diagnostic) Object.assign(diagnostic, { limit, bestScore: null, rejected: { score: 0, unfinishedTail: 0, insufficientSupport: 0 } });
   const stride = n + 1;
   const costs = new Float32Array((m + 1) * stride);
   const back = new Uint8Array(costs.length);
@@ -54,6 +55,10 @@ function matchWords(references, heard, config, final) {
   let best = null;
   for (let end = 1; end <= m; end++) {
     const score = costs[end * stride + n] / effective;
+    if (diagnostic) {
+      if (diagnostic.bestScore === null || score < diagnostic.bestScore) diagnostic.bestScore = score;
+      if (score > limit) diagnostic.rejected.score++;
+    }
     if (score > limit || (best && score >= best.score - 1e-6)) continue;
     let i = end, j = n, missingTail = false, reachedSound = false;
     const trace = [];
@@ -71,7 +76,7 @@ function matchWords(references, heard, config, final) {
       } else { i--; }
     }
     // Wait for missing core sounds, not for every word at the live frontier.
-    if (!final && missingTail && end >= m - 1) continue;
+    if (!final && missingTail && end >= m - 1) { if (diagnostic) diagnostic.rejected.unfinishedTail++; continue; }
     let boundary = 0, valid = true;
     for (const word of references) {
       const part = trace.filter(step => step.ref >= boundary && step.ref < boundary + word.length);
@@ -85,7 +90,7 @@ function matchWords(references, heard, config, final) {
       }
       boundary += word.length;
     }
-    if (!valid) continue;
+    if (!valid) { if (diagnostic) diagnostic.rejected.insufficientSupport++; continue; }
     best = { score, consumed: end, start: i, merged: references.length };
     if (score === 0) break; // Earliest exact occurrence wins over repetitions.
   }
@@ -96,23 +101,32 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
   const heard = normalize(transcript);
   let offset = 0, cursor = start;
   const results = [];
+  let attempts = [];
+  const probe = (references, remaining, kind, index) => {
+    const diagnostic = { kind, index, references };
+    const candidate = matchWords(references, remaining, config, final, diagnostic);
+    diagnostic.accepted = candidate;
+    attempts.push(diagnostic);
+    return candidate;
+  };
   while (cursor < words.length && offset < heard.length) {
+    attempts = [];
     const remaining = heard.slice(offset);
     let match = null, skipped = 0;
     for (let merge = 1; merge <= 2 && cursor + merge <= words.length; merge++) {
-      match = matchWords(words.slice(cursor, cursor + merge).map(w => w.phoneme), remaining, config, final);
+      match = probe(words.slice(cursor, cursor + merge).map(w => w.phoneme), remaining, 'current-or-merge', cursor);
       if (match) break;
     }
     if (!match) {
       for (let ahead = 1; ahead <= config.skip && cursor + ahead < words.length; ahead++) {
         const target = words[cursor + ahead].phoneme;
-        const candidate = matchWords([target], remaining, config, final);
+        const candidate = probe([target], remaining, 'lookahead', cursor + ahead);
         if (!candidate) continue;
         // Recover only from a strong long word or two neighboring matches.
         let supported = effectiveLength(target) >= 5 && candidate.score <= .15;
         const next = words[cursor + ahead + 1];
         if (!supported && next) {
-          const following = matchWords([next.phoneme], remaining.slice(candidate.consumed), config, final);
+          const following = probe([next.phoneme], remaining.slice(candidate.consumed), 'lookahead-support', cursor + ahead + 1);
           supported = following && following.start <= 3 && following.score <= .2;
         }
         if (supported) { match = candidate; skipped = ahead; break; }
@@ -129,5 +143,8 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
       while (offset < heard.length && heard[offset] === ending) offset++;
     }
   }
-  return { results, cursor, consumed: offset, heard };
+  return { results, cursor, consumed: offset, heard, diagnostic: {
+    reason: cursor >= words.length ? 'page-complete' : offset >= heard.length ? 'waiting-for-more-phonemes' : 'no-supported-match',
+    blockedIndex: cursor, remaining: heard.slice(offset).slice(-2000), attempts,
+  } };
 }

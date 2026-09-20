@@ -1,8 +1,9 @@
 import { alignSegment, normalize } from './alignment.js';
 import { setupOffline, refreshOfflineStatus } from './offline.js';
+import { createDebugPanel } from './debug.js';
 
 const $ = id => document.getElementById(id);
-const arabicNumber = new Intl.NumberFormat('ar', { useGrouping: false });
+const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
@@ -14,6 +15,24 @@ let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
 let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
+let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
+let audioDiagnostic = {};
+function debugWord(index) {
+  const word = words[index];
+  return word ? { index, surah: word.surah, ayah: word.ayah, word: word.position + 1,
+    bismillah: Boolean(word.bismillah), text: word.accessible, phoneme: word.phoneme, state: states[index] || 'upcoming' } : null;
+}
+function debugSnapshot() {
+  const now = Date.now();
+  return { phase, page: currentPage, sessionId, engineReady, cursor, segmentStart,
+    totalWords: words.length, pendingChunks, estimatedQueuedAudioMs: pendingChunks * 320,
+    sinceRecognitionMs: lastRecognitionAt ? now - lastRecognitionAt : null,
+    sinceAdvanceMs: lastAdvanceAt ? now - lastAdvanceAt : null,
+    expected: debugWord(cursor), nearby: words.slice(Math.max(0, cursor - 2), cursor + 5).map((_, i) => debugWord(Math.max(0, cursor - 2) + i)),
+    transcript: lastTranscript, segmentCarry, audio: audioDiagnostic, micSettings,
+    audioContextState: context?.state || 'closed', status: $('status').textContent };
+}
+const debug = createDebugPanel(debugSnapshot);
 try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]'); if (!Array.isArray(history)) history = []; } catch {}
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
 
@@ -21,13 +40,17 @@ const bars = Array.from({ length: 40 }, () => { const bar = document.createEleme
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
-  for (const id of ['search', 'search-go']) $(id).disabled = locked() || !chapter;
+  for (const id of ['search', 'search-go', 'surah']) $(id).disabled = locked() || !chapter;
   $('previous-page').disabled = locked() || currentPage <= 1;
   $('next-page').disabled = locked() || currentPage >= 604;
   $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase);
   $('reset').disabled = ['loading', 'starting', 'stopping'].includes(phase);
   $('record').classList.toggle('recording', phase === 'recording');
-  $('record-label').textContent = ({ loading: 'Loading model…', starting: 'Opening microphone…', recording: 'Stop reciting', stopping: 'Finishing…' })[phase] || 'Start reciting';
+  const recordLabel = ({ loading: 'Loading model…', starting: 'Opening microphone…', recording: 'Stop reciting', stopping: 'Finishing…' })[phase] || 'Start reciting';
+  $('record').setAttribute('aria-label', recordLabel);
+  $('record').title = recordLabel;
+  $('record').setAttribute('aria-pressed', String(phase === 'recording'));
+  $('record').setAttribute('aria-busy', String(['loading', 'starting', 'stopping'].includes(phase)));
   $('reader-state').textContent = phase === 'recording' ? 'LISTENING TO YOUR RECITATION' : 'READY WHEN YOU ARE';
 }
 
@@ -46,6 +69,7 @@ function paint() {
   }
   const percentage = words.length ? Math.round((matched + review) / words.length * 100) : 0;
   $('matched').textContent = matched;
+  $('mistakes').textContent = review;
   $('progress').value = percentage;
   $('percent').textContent = `${percentage}%`;
   $('progress-hint').textContent = review ? `${review} word${review === 1 ? '' : 's'} to revisit. Select a word to try again.` : matched ? `${matched} of ${words.length} words matched.` : 'One ayah at a time.';
@@ -67,6 +91,7 @@ function appendWord(row, word, text) {
   button.addEventListener('click', () => {
     if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
     cursor = index; segmentStart = index; segmentCarry = '';
+    lastAdvanceAt = Date.now(); debug.log('word-selected', { expected: debugWord(index) });
     states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
     savedThisRun = false; paint();
     status(word.bismillah ? 'Ready from the opening Bismillah.' : `Ready from ayah ${word.surah}:${word.ayah}, word ${word.position + 1}.`);
@@ -148,6 +173,8 @@ new ResizeObserver(fitMushafLines).observe($('ayahs'));
 document.fonts.ready.then(fitMushafLines);
 document.fonts.addEventListener('loadingdone', fitMushafLines);
 function resetSession() {
+  debug.log('reset', { page: currentPage });
+  lastRecognitionAt = 0; lastAdvanceAt = 0; lastTranscript = ''; audioDiagnostic = {};
   states = new Array(words.length); committed = [...states]; cursor = 0; segmentStart = 0;
   segmentCarry = '';
   elapsed = 0; startedAt = 0; savedThisRun = false; lastFollowedAyah = null;
@@ -158,6 +185,7 @@ function focusVerse(key) {
   const index = words.findIndex(w => `${w.surah}:${w.ayah}` === key);
   if (index < 0) return;
   cursor = index; segmentStart = index; paint();
+  debug.log('verse-selected', { key, expected: debugWord(index) });
   // Scroll the text panel only; keep the top controls in place.
   $('ayahs').scrollTop = Math.max(0, elements[index].offsetTop - 80);
   status(words[index].bismillah ? 'Begin with Bismillah, then continue into the surah.' : `Ready from ayah ${key}.`);
@@ -168,6 +196,7 @@ function openPage(page, targetKey) {
   if (!Number.isInteger(page) || page < 1 || page > 604) { status('Enter a page number from 1 to 604.', true); return; }
   const firstVerse = chapters.flatMap(c => c.verses).find(v => targetKey ? verseKey(v) === targetKey : layouts[verseKey(v)][1].some(([p]) => p === page));
   chapter = chapters.find(c => c.id === firstVerse.surah);
+  $('surah').value = String(chapter.id);
   currentPage = page; renderPassage();
   if (targetKey) focusVerse(targetKey);
 }
@@ -220,6 +249,7 @@ function createWorker() {
   worker.onmessage = ({ data }) => {
     if (data.type === 'progress') { status(data.message); $('download').value = data.value; return; }
     if (data.type === 'ready') {
+      debug.log('engine-ready');
       clearTimeout(workerTimer); engineReady = true; $('download').hidden = true; $('model-picker').hidden = true;
       engineResolve?.(); engineResolve = null;
       void refreshOfflineStatus(); return;
@@ -231,9 +261,24 @@ function createWorker() {
     }
     if (data.sessionId !== sessionId) return;
     if (data.type === 'started') { startResolve?.(); startResolve = null; }
-    if (data.type === 'ack') pendingChunks = Math.max(0, pendingChunks - 1);
+    if (data.type === 'ack') {
+      pendingChunks = Math.max(0, pendingChunks - 1);
+      audioDiagnostic = { processMs: data.processMs, audioMs: data.audioMs, rms: data.rms, peak: data.peak,
+        receivedAt: Date.now(), maxProcessMs: Math.max(audioDiagnostic.maxProcessMs || 0, data.processMs || 0),
+        maxPendingChunks: Math.max(audioDiagnostic.maxPendingChunks || 0, pendingChunks) };
+      if (Date.now() - lastAudioLogAt >= 1000) {
+        lastAudioLogAt = Date.now();
+        debug.log('audio', { ...audioDiagnostic, pendingChunks,
+          sinceRecognitionMs: lastRecognitionAt ? Date.now() - lastRecognitionAt : null,
+          sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null });
+      }
+    }
     if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) {
+      lastRecognitionAt = Date.now(); lastTranscript = data.text.slice(-6000);
+      const cursorBefore = cursor, segmentBefore = segmentStart, carryBefore = segmentCarry;
+      const matchingBegan = performance.now();
       const match = alignSegment(words, segmentStart, segmentCarry + data.text, 'balanced', data.final);
+      const matchingMs = performance.now() - matchingBegan;
       // CTC can revise an earlier part of its cumulative hypothesis. Once a
       // word has advanced the visible cursor, that revision must not rewind
       // the reading position or erase completed highlights.
@@ -244,6 +289,16 @@ function createWorker() {
         }
         cursor = match.cursor;
       }
+      if (cursor > cursorBefore) lastAdvanceAt = Date.now();
+      debug.log('recognition', {
+        sessionId, final: data.final, transcript: lastTranscript, transcriptLength: data.text.length,
+        normalizedTranscript: match.heard.slice(-6000), carryBefore, segmentBefore,
+        cursorBefore, candidateCursor: match.cursor, cursorAfter: cursor,
+        noRewindGuardHeld: !caughtUp, matchingMs, consumed: match.consumed,
+        changes: match.results.slice(-40), expected: debugWord(cursor), candidateBlockedWord: debugWord(match.cursor),
+        sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null,
+        diagnostic: match.diagnostic,
+      });
       if (data.final) {
         committed = [...states]; segmentStart = cursor;
         // Carry only audio aligned at the current frontier. A regressed final
@@ -277,6 +332,7 @@ async function releaseAudio() {
   bars.forEach(bar => bar.style.height = '5px');
 }
 async function failEngine(message) {
+  debug.log('engine-error', { message, snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
   clearTimeout(workerTimer); worker?.terminate(); worker = null; engineReady = false;
   if (startedAt) { elapsed += (Date.now() - startedAt) / 1000; startedAt = 0; }
@@ -302,6 +358,7 @@ function animateLevel() {
 
 async function startRecording(file) {
   if (phase !== 'idle') return;
+  debug.log('start-request', { page: currentPage, cursor, engineReady });
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
   if (cursor >= words.length) resetSession();
   phase = 'starting'; controls(); status('Allow microphone access to begin.');
@@ -318,11 +375,17 @@ async function startRecording(file) {
     try {
       media = await Promise.race([request, new Promise((_, reject) => { micTimer = setTimeout(() => { abandoned = true; reject(new Error('Microphone permission timed out. Allow access, then try again.')); }, 45000); })]);
     } finally { clearTimeout(micTimer); }
+    const settings = media.getAudioTracks()[0].getSettings();
+    micSettings = { sampleRate: settings.sampleRate, channelCount: settings.channelCount,
+      echoCancellation: settings.echoCancellation, noiseSuppression: settings.noiseSuppression,
+      autoGainControl: settings.autoGainControl, contextSampleRate: context.sampleRate };
     await context.audioWorklet.addModule(new URL('../audio-worklet.js', import.meta.url));
     capture = new AudioWorkletNode(context, 'recitation-capture');
     source = context.createMediaStreamSource(media); analyser = context.createAnalyser(); analyser.fftSize = 512;
     mute = context.createGain(); mute.gain.value = 0;
     sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
+    lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
+    debug.log('session-start', { sessionId, expected: debugWord(cursor), micSettings });
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => { startResolve = null; reject(new Error('The speech engine did not start. Please retry.')); }, 15000);
       startResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
@@ -340,6 +403,7 @@ async function startRecording(file) {
     phase = 'recording'; startedAt = Date.now(); savedThisRun = false; controls(); animateLevel();
     status('Listening. Recite the highlighted passage at your own pace.');
   } catch (error) {
+    debug.log('start-error', { name: error.name, message: error.message });
     await releaseAudio(); phase = 'idle'; controls();
     const messages = { NotAllowedError: 'Microphone access was denied. Allow it in your browser’s site settings, then try again.', NotFoundError: 'No microphone was found. Connect one, then try again.', NotReadableError: 'The microphone is busy or unavailable. Close other apps using it, then retry.' };
     status(messages[error.name] || error.message, true);
@@ -349,6 +413,7 @@ async function startRecording(file) {
 async function stopRecording() {
   if (stopPromise) return stopPromise;
   if (phase !== 'recording') return;
+  debug.log('stop-request', { snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
   elapsed += (Date.now() - startedAt) / 1000; startedAt = 0;
   stopPromise = (async () => {
@@ -380,6 +445,11 @@ $('reset').addEventListener('click', async () => { await stopRecording(); resetS
 $('previous-page').addEventListener('click', () => openPage(currentPage - 1));
 $('next-page').addEventListener('click', () => openPage(currentPage + 1));
 $('search-form').addEventListener('submit', searchPassage);
+$('surah').addEventListener('change', () => {
+  if (locked()) return;
+  const key = `${$('surah').value}:1`;
+  if (layouts[key]) openPage(layouts[key][1][0][0], key);
+});
 $('visibility').addEventListener('click', () => {
   memoryMode = !memoryMode;
   const button = $('visibility');
@@ -410,6 +480,7 @@ async function init() {
     }
     chapters = [...map.values()].sort((a, b) => a.id - b.id);
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
+    $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en} — \u2067${c.ar}\u2069`, String(c.id))));
     openPage(1);
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }
