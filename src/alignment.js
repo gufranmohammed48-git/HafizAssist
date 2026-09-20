@@ -7,6 +7,23 @@ export function normalize(text) {
     .replace(/ۥ/gu, 'و').replace(/ۦ/gu, 'ي');
 }
 const vowel = c => 'اوي'.includes(c);
+// Map a previously consumed boundary into the latest cumulative hypothesis.
+// Never search the entire transcript for a repeated phrase: ambiguous or
+// substantially revised anchors must fall back to normal guarded alignment.
+export function locateTranscriptBoundary(anchor, heard) {
+  if (!anchor || anchor.offset > anchor.heard.length) return null;
+  const prefix = anchor.heard.slice(0, anchor.offset);
+  if (heard.startsWith(prefix)) return anchor.offset;
+  const tail = prefix.slice(-24);
+  if (tail.length < 8) return null;
+  const candidates = [];
+  let position = heard.indexOf(tail, Math.max(0, anchor.offset - tail.length - 64));
+  while (position !== -1 && position + tail.length <= anchor.offset + 64) {
+    candidates.push(position + tail.length);
+    position = heard.indexOf(tail, position + 1);
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
 const shortVowel = c => 'َُِ'.includes(c);
 const pairs = ['اَ', 'وُ', 'يِ', 'تط', 'جز', 'خغ', 'دض', 'ذز', 'ذظ', 'سص', 'قك'];
 const presets = {

@@ -1,4 +1,4 @@
-import { alignSegment, normalize } from './alignment.js';
+import { alignSegment, normalize, locateTranscriptBoundary } from './alignment.js';
 import { setupOffline, refreshOfflineStatus } from './offline.js';
 import { createDebugPanel } from './debug.js';
 
@@ -7,6 +7,7 @@ const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useG
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
+let alignmentAnchor = null;
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
@@ -26,6 +27,7 @@ function debugSnapshot() {
   const now = Date.now();
   return { phase, page: currentPage, sessionId, engineReady, cursor, segmentStart,
     totalWords: words.length, pendingChunks, estimatedQueuedAudioMs: pendingChunks * 320,
+    alignmentAnchor: alignmentAnchor ? { cursor: alignmentAnchor.cursor, offset: alignmentAnchor.offset } : null,
     sinceRecognitionMs: lastRecognitionAt ? now - lastRecognitionAt : null,
     sinceAdvanceMs: lastAdvanceAt ? now - lastAdvanceAt : null,
     expected: debugWord(cursor), nearby: words.slice(Math.max(0, cursor - 2), cursor + 5).map((_, i) => debugWord(Math.max(0, cursor - 2) + i)),
@@ -91,6 +93,7 @@ function appendWord(row, word, text) {
   button.addEventListener('click', () => {
     if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
     cursor = index; segmentStart = index; segmentCarry = '';
+    alignmentAnchor = null;
     lastAdvanceAt = Date.now(); debug.log('word-selected', { expected: debugWord(index) });
     states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
     savedThisRun = false; paint();
@@ -173,6 +176,7 @@ new ResizeObserver(fitMushafLines).observe($('ayahs'));
 document.fonts.ready.then(fitMushafLines);
 document.fonts.addEventListener('loadingdone', fitMushafLines);
 function resetSession() {
+  alignmentAnchor = null;
   debug.log('reset', { page: currentPage });
   lastRecognitionAt = 0; lastAdvanceAt = 0; lastTranscript = ''; audioDiagnostic = {};
   states = new Array(words.length); committed = [...states]; cursor = 0; segmentStart = 0;
@@ -182,6 +186,7 @@ function resetSession() {
   status('Choose a passage, then start when you’re ready.');
 }
 function focusVerse(key) {
+  alignmentAnchor = null;
   const index = words.findIndex(w => `${w.surah}:${w.ayah}` === key);
   if (index < 0) return;
   cursor = index; segmentStart = index; paint();
@@ -277,7 +282,12 @@ function createWorker() {
       lastRecognitionAt = Date.now(); lastTranscript = data.text.slice(-6000);
       const cursorBefore = cursor, segmentBefore = segmentStart, carryBefore = segmentCarry;
       const matchingBegan = performance.now();
-      const match = alignSegment(words, segmentStart, segmentCarry + data.text, 'balanced', data.final);
+      const heard = normalize(segmentCarry + data.text);
+      const hadAnchor = alignmentAnchor !== null;
+      const boundary = alignmentAnchor?.cursor === cursor ? locateTranscriptBoundary(alignmentAnchor, heard) : null;
+      const inputOffset = boundary ?? 0;
+      const inputStart = boundary === null ? segmentStart : cursor;
+      const match = alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final);
       const matchingMs = performance.now() - matchingBegan;
       // CTC can revise an earlier part of its cumulative hypothesis. Once a
       // word has advanced the visible cursor, that revision must not rewind
@@ -289,10 +299,15 @@ function createWorker() {
         }
         cursor = match.cursor;
       }
-      if (cursor > cursorBefore) lastAdvanceAt = Date.now();
+      if (cursor > cursorBefore) {
+        lastAdvanceAt = Date.now();
+        alignmentAnchor = { heard, offset: inputOffset + match.consumed, cursor };
+      }
       debug.log('recognition', {
         sessionId, final: data.final, transcript: lastTranscript, transcriptLength: data.text.length,
-        normalizedTranscript: match.heard.slice(-6000), carryBefore, segmentBefore,
+        normalizedTranscript: heard.slice(-6000), carryBefore, segmentBefore,
+        inputStart, inputOffset, boundaryReused: boundary !== null,
+        anchorFallback: hadAnchor && boundary === null,
         cursorBefore, candidateCursor: match.cursor, cursorAfter: cursor,
         noRewindGuardHeld: !caughtUp, matchingMs, consumed: match.consumed,
         changes: match.results.slice(-40), expected: debugWord(cursor), candidateBlockedWord: debugWord(match.cursor),
@@ -304,6 +319,7 @@ function createWorker() {
         // Carry only audio aligned at the current frontier. A regressed final
         // hypothesis contains old verse audio, not a new unfinished word.
         segmentCarry = caughtUp ? match.heard.slice(match.consumed).slice(-192) : '';
+        alignmentAnchor = null;
       }
       paint();
       if (cursor >= words.length && phase === 'recording') void stopRecording();
@@ -384,6 +400,7 @@ async function startRecording(file) {
     source = context.createMediaStreamSource(media); analyser = context.createAnalyser(); analyser.fftSize = 512;
     mute = context.createGain(); mute.gain.value = 0;
     sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
+    alignmentAnchor = null;
     lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
     debug.log('session-start', { sessionId, expected: debugWord(cursor), micSettings });
     await new Promise((resolve, reject) => {
