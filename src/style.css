@@ -87,3 +87,12 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .practice+.reader{margin-top:10px}
 @media(max-width:600px){.header{gap:4px;padding:10px 10px 2px}.header .page-navigation{gap:0;font-size:10px}.header #next-page,.header #previous-page{min-width:28px;padding:0 6px}.header #theme{min-width:30px;padding:6px}.header .app-version{font-size:11px;padding:5px 7px}.recorder-main{gap:8px}.recorder-main .record-button{flex-basis:40px;width:40px;height:40px;min-height:40px}.recorder-main .recitation-counts{flex:0 0 auto;gap:9px;font-size:10px}.recorder-main .recitation-counts strong{font-size:16px}.recorder-main .visibility-toggle{flex-basis:32px;width:32px;height:34px;min-width:32px;padding:5px}.session-inline{min-width:48px;margin:0}.session-inline .session-meta{font-size:9px;gap:3px}}
 @media(max-width:430px){.recorder-main #reset span{display:none}.recorder-main #reset{font-size:18px;padding:3px;min-width:24px}.recorder-main{gap:6px!important}.recorder-main .recitation-counts{gap:6px!important}}
+/* Center navigation within the Mushaf heading, without adding another row. */
+.header{display:block;padding:12px 100px 4px}
+.header #theme{position:absolute;right:66px;top:12px}
+.header .app-version{position:absolute;right:16px;top:15px}
+.surah-heading{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;padding:10px 2px}
+.surah-heading h2{justify-self:start;min-width:0;overflow-wrap:anywhere}
+.surah-heading p{justify-self:end;text-align:right;min-width:0}
+.surah-heading .page-navigation{display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:12px;color:var(--muted);direction:ltr}
+@media(max-width:600px){.header{padding:10px 85px 2px}.header #theme{right:54px;top:9px}.header .app-version{right:10px;top:12px}.surah-heading{gap:6px;padding:8px 0}.surah-heading .page-navigation{gap:0;font-size:11px}.surah-heading #next-page,.surah-heading #previous-page{min-width:30px;padding:0 6px}}

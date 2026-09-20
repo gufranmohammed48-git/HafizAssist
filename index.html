@@ -8,10 +8,9 @@
 </head>
 <body>
   <header class="header">
-    <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 14" title="Loaded application version">V14</span>
+    <span class="app-version" aria-label="Application version 15" title="Loaded application version">V15</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
@@ -47,7 +46,11 @@
       </div>
     </section>
     <article class="reader" aria-label="Mushaf">
-      <div class="surah-heading"><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Preparing Quran text</p></div>
+      <div class="surah-heading">
+        <h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2>
+        <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
+        <p id="surah-title">Preparing Quran text</p>
+      </div>
       <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>
       <div class="reader-footer"><span id="passage-label">Preparing Quran text</span><div class="legend"><span><i class="green"></i>Matched</span><span><i class="amber"></i>Review</span><span><i class="gray"></i>Upcoming</span></div></div>
     </article>
