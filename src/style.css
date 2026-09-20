@@ -55,7 +55,9 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .reader-toolbar .visibility-toggle{justify-self:end;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid var(--border);border-radius:9px;transition:background .15s,color .15s}
 .visibility-toggle span{display:flex;align-items:center;justify-content:center}
 .visibility-toggle[aria-pressed=true]{background:var(--soft);color:var(--green);border-color:var(--green)}
-.search-surah-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+.search-surah-row{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center}
+.search-surah-row .voice-open{margin:0;width:42px;height:42px;min-width:42px;border:1px solid var(--border);border-radius:12px;color:var(--green)}
+.recorder-main #reset{margin-left:auto}
 .search-surah-row>*{min-width:0}
 .surah-picker select{height:54px;padding:12px;border-radius:12px;font-size:14px;direction:ltr}
 .recorder-main{flex-wrap:nowrap}
@@ -70,3 +72,18 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .bismillah-line .word{font-family:'Traditional Arabic','Noto Naskh Arabic','Geeza Pro',serif;font-size:clamp(28px,4vw,40px);font-weight:400;line-height:1.9;padding:0 2px}
 @media(max-width:600px){.practice{padding:14px 13px}.header{padding-bottom:0}.unified-search #search{font-size:13px;padding:13px 8px}.unified-search #search-go{padding:0 11px}.search-icon{margin-left:10px}#search-hint{font-size:10px;margin-bottom:13px}.reader-toolbar{grid-template-columns:1fr auto;gap:8px}.reader-status{display:none}.reader-toolbar .page-navigation{justify-self:start}.bismillah-line{gap:4px}}
 @media(max-width:600px){.search-surah-row{gap:8px}.search-surah-row .search-icon{display:none}.search-surah-row #search{font-size:12px;padding:12px 7px}.search-surah-row #search-go{padding:0 8px;margin:5px}.search-surah-row #search-go span{display:none}.surah-picker select{font-size:12px;padding:10px 6px}.recorder-main{gap:12px}.recorder-main .waveform{display:none}.recitation-counts{flex:1;justify-content:center;gap:12px;font-size:11px}.recitation-counts strong{font-size:17px;margin-right:2px}.recorder-main #reset{padding:6px;font-size:11px}}
+/* V14: keep navigation in the header and practice feedback in one compact row. */
+.header{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:12px 16px 4px}
+.header .bismillah{width:240px;max-width:100%;margin:0 auto}
+.header #theme,.header .app-version{position:static}
+.header .app-version{justify-self:end;white-space:nowrap}
+.header .page-navigation{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px;color:var(--muted);direction:ltr}
+.recorder{padding-top:10px}
+.recorder-main{gap:14px}
+.recorder-main .visibility-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;padding:7px;border:1px solid var(--border);border-radius:9px}
+.session-inline{flex:1;min-width:66px;max-width:220px;margin-left:2px}
+.session-inline .session-meta{margin:0 0 5px;gap:8px;line-height:1.2}
+.session-inline #progress{margin:0;height:3px}
+.practice+.reader{margin-top:10px}
+@media(max-width:600px){.header{gap:4px;padding:10px 10px 2px}.header .page-navigation{gap:0;font-size:10px}.header #next-page,.header #previous-page{min-width:28px;padding:0 6px}.header #theme{min-width:30px;padding:6px}.header .app-version{font-size:11px;padding:5px 7px}.recorder-main{gap:8px}.recorder-main .record-button{flex-basis:40px;width:40px;height:40px;min-height:40px}.recorder-main .recitation-counts{flex:0 0 auto;gap:9px;font-size:10px}.recorder-main .recitation-counts strong{font-size:16px}.recorder-main .visibility-toggle{flex-basis:32px;width:32px;height:34px;min-width:32px;padding:5px}.session-inline{min-width:48px;margin:0}.session-inline .session-meta{font-size:9px;gap:3px}}
+@media(max-width:430px){.recorder-main #reset span{display:none}.recorder-main #reset{font-size:18px;padding:3px;min-width:24px}.recorder-main{gap:6px!important}.recorder-main .recitation-counts{gap:6px!important}}

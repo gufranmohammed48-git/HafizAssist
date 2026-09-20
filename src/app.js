@@ -45,7 +45,13 @@ try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]');
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
 
 
-function status(message, error = false) { if (voiceSearch) { $('voice-status').textContent = message; $('voice-status').classList.toggle('error', error); } $('status').textContent = message; $('status').classList.toggle('error', error); }
+function status(message, error = false) {
+  if (voiceSearch) { $('voice-status').textContent = message; $('voice-status').classList.toggle('error', error); }
+  $('status').textContent = message;
+  $('status').classList.toggle('error', error);
+  // Keep routine practice messages out of the reading area, but surface problems and setup progress.
+  $('status').hidden = voiceSearch || !(error || ['loading', 'starting'].includes(phase));
+}
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
@@ -65,7 +71,6 @@ function controls() {
   $('record').title = recordLabel;
   $('record').setAttribute('aria-pressed', String(phase === 'recording'));
   $('record').setAttribute('aria-busy', String(['loading', 'starting', 'stopping'].includes(phase)));
-  $('reader-state').textContent = phase === 'recording' ? 'LISTENING TO YOUR RECITATION' : 'READY WHEN YOU ARE';
 }
 
 function formatTime(seconds) { return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
@@ -86,7 +91,6 @@ function paint() {
   $('mistakes').textContent = completedReview + review;
   $('progress').value = percentage;
   $('percent').textContent = `${percentage}%`;
-  $('progress-hint').textContent = review ? `${review} word${review === 1 ? '' : 's'} to revisit. Select a word to try again.` : matched ? `${matched} of ${words.length} words matched.` : 'One ayah at a time.';
   if (words[cursor]) { chapter = chapters.find(c => c.id === words[cursor].surah); $('surah').value = String(chapter.id); }
   const currentAyah = words[cursor] && `${words[cursor].surah}:${words[cursor].ayah}`;
   document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', row.dataset.key === currentAyah));
