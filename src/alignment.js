@@ -162,13 +162,17 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
     alignments.push({ index: cursor + skipped, skipped, merged: match.merged,
       heardStart: offset + match.start, heardEnd: offset + match.consumed,
       score: match.score, heardText: heard.slice(offset + match.start, offset + match.consumed) });
-    for (let k = 0; k < skipped; k++) results.push({ index: cursor++, state: 'review' });
+    const recoveryWord = words[cursor + skipped]?.accessible;
+    for (let k = 0; k < skipped; k++) results.push({ index: cursor++, state: 'review', detail: {
+      reason: 'No confident phoneme match. Tracking continued at a supported later word.',
+      heard: remaining.slice(0, match.start).slice(-160), recoveryWord,
+    } });
     for (let k = 0; k < match.merged; k++) results.push({ index: cursor++, state: 'matched' });
     offset += match.consumed;
     // Absorb a continuing final sound unless the next word needs that sound
     // at its start. Otherwise madd/shaddah tails can masquerade as short words.
     const ending = heard[offset - 1];
-    if (words[cursor]?.phoneme[0] !== ending) {
+    if (cursor < words.length && words[cursor]?.phoneme[0] !== ending) {
       while (offset < heard.length && heard[offset] === ending) offset++;
     }
   }

@@ -1,6 +1,7 @@
 import { alignSegment, normalize, locateTranscriptBoundary } from './alignment.js';
 import { setupOffline, refreshOfflineStatus } from './offline.js';
 import { createDebugPanel } from './debug.js';
+import { createWordInfo, wordRules } from './word-info.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
@@ -8,6 +9,9 @@ let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
 let alignmentAnchor = null;
+let pageBoundary = null;
+let reviewDetails = [], completedMatched = 0, completedReview = 0, completedPages = 0, firstPracticePage = 1;
+const wordInfo = createWordInfo(index => ({ word: words[index], state: states[index], detail: reviewDetails[index], hidden: memoryMode }));
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
@@ -38,7 +42,7 @@ const debug = createDebugPanel(debugSnapshot);
 try { history = JSON.parse(localStorage.getItem('hafizassist-history') || '[]'); if (!Array.isArray(history)) history = []; } catch {}
 try { document.body.classList.toggle('dark', localStorage.getItem('hafizassist-theme') === 'dark'); } catch {}
 
-const bars = Array.from({ length: 40 }, () => { const bar = document.createElement('i'); $('waveform').append(bar); return bar; });
+
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function locked() { return ['loading', 'starting', 'recording', 'stopping'].includes(phase); }
 function controls() {
@@ -70,11 +74,12 @@ function paint() {
     if (state === 'review') review++;
   }
   const percentage = words.length ? Math.round((matched + review) / words.length * 100) : 0;
-  $('matched').textContent = matched;
-  $('mistakes').textContent = review;
+  $('matched').textContent = completedMatched + matched;
+  $('mistakes').textContent = completedReview + review;
   $('progress').value = percentage;
   $('percent').textContent = `${percentage}%`;
   $('progress-hint').textContent = review ? `${review} word${review === 1 ? '' : 's'} to revisit. Select a word to try again.` : matched ? `${matched} of ${words.length} words matched.` : 'One ayah at a time.';
+  if (words[cursor]) { chapter = chapters.find(c => c.id === words[cursor].surah); $('surah').value = String(chapter.id); }
   const currentAyah = words[cursor] && `${words[cursor].surah}:${words[cursor].ayah}`;
   document.querySelectorAll('.ayah').forEach(row => row.classList.toggle('current', row.dataset.key === currentAyah));
   const currentPosition = currentAyah && `${currentAyah}:${elements[cursor].offsetTop}`;
@@ -90,19 +95,23 @@ function appendWord(row, word, text) {
   const index = words.length; words.push(word);
   const button = document.createElement('button');
   button.className = 'word'; button.textContent = text; button.type = 'button';
+  wordInfo.bind(button, index);
   button.addEventListener('click', () => {
     if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
     cursor = index; segmentStart = index; segmentCarry = '';
     alignmentAnchor = null;
+    pageBoundary = null;
     lastAdvanceAt = Date.now(); debug.log('word-selected', { expected: debugWord(index) });
     states = states.map((state, i) => i < index ? state : undefined); committed = [...states];
+    reviewDetails = reviewDetails.map((detail, i) => i < index ? detail : undefined);
     savedThisRun = false; paint();
     status(word.bismillah ? 'Ready from the opening Bismillah.' : `Ready from ayah ${word.surah}:${word.ayah}, word ${word.position + 1}.`);
   });
   row.append(button, document.createTextNode(' ')); elements.push(button);
 }
 
-function renderPassage() {
+function renderPassage(continuing = false) {
+  wordInfo.hide();
   $('ayahs').replaceChildren(); words = []; elements = [];
   $('ayahs').classList.toggle('opening-page', currentPage <= 2);
   $('page-label').textContent = `Page ${currentPage}`;
@@ -128,7 +137,7 @@ function renderPassage() {
         const text = ['بِسْمِ', 'اللَّهِ', 'الرَّحْمَٰنِ', 'الرَّحِيمِ'];
         opening.aya_phonemes_list.forEach((phoneme, position) => {
           appendWord(row, { surah: verse.surah, ayah: 1, position, bismillah: true,
-            phoneme: normalize(phoneme), accessible: text[position] }, text[position]);
+            phoneme: normalize(phoneme), accessible: text[position], rules: opening.wordRules[position] }, text[position]);
         });
         $('ayahs').append(row);
       }
@@ -139,7 +148,7 @@ function renderPassage() {
     verse.aya_phonemes_list.forEach((phoneme, position) => {
       if (layout[position][0] !== currentPage) return;
       appendWord(pageLine(layout[position][1]), { surah: verse.surah, ayah: verse.ayah, position,
-        phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`
+        phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`, rules: verse.wordRules[position]
       }, glyphs[position] || readable[position] || '…');
     });
     if (layout.at(-1)[0] === currentPage) {
@@ -152,7 +161,11 @@ function renderPassage() {
   $('surah-ar').textContent = pageChapters.map(c => c.ar).join(' · ');
   $('surah-title').textContent = `Juz ${layouts[verseKey(verses[0])][0]} · Page ${currentPage} of 604`;
   $('passage-label').textContent = `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}`;
-  resetSession(); $('ayahs').scrollTop = 0; controls(); fitMushafLines();
+  if (continuing) {
+    states = new Array(words.length); committed = [...states]; reviewDetails = [];
+    cursor = 0; segmentStart = 0; lastFollowedAyah = null; paint();
+  } else resetSession();
+  $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
 function fitMushafLines() {
   // Preserve the printed page's line breaks on narrow screens and after zoom.
@@ -176,6 +189,8 @@ new ResizeObserver(fitMushafLines).observe($('ayahs'));
 document.fonts.ready.then(fitMushafLines);
 document.fonts.addEventListener('loadingdone', fitMushafLines);
 function resetSession() {
+  pageBoundary = null;
+  wordInfo.hide(); reviewDetails = []; completedMatched = 0; completedReview = 0; completedPages = 0; firstPracticePage = currentPage;
   alignmentAnchor = null;
   debug.log('reset', { page: currentPage });
   lastRecognitionAt = 0; lastAdvanceAt = 0; lastTranscript = ''; audioDiagnostic = {};
@@ -186,6 +201,7 @@ function resetSession() {
   status('Choose a passage, then start when you’re ready.');
 }
 function focusVerse(key) {
+  pageBoundary = null;
   alignmentAnchor = null;
   const index = words.findIndex(w => `${w.surah}:${w.ayah}` === key);
   if (index < 0) return;
@@ -241,8 +257,8 @@ function renderHistory() {
 function saveSession() {
   if (savedThisRun || elapsed < 1) return;
   savedThisRun = true;
-  const entry = { surah: chapter.en, from: words[0]?.ayah, to: words.at(-1)?.ayah, matched: states.filter(s => s === 'matched').length, review: states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
-  entry.passage = $('passage-label').textContent;
+  const entry = { surah: chapter.en, from: words[0]?.ayah, to: words.at(-1)?.ayah, matched: completedMatched + states.filter(s => s === 'matched').length, review: completedReview + states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
+  entry.passage = completedPages ? `Pages ${firstPracticePage} → ${currentPage} · ${completedPages} completed` : $('passage-label').textContent;
   history.unshift(entry); history = history.slice(0, 30);
   try { localStorage.setItem('hafizassist-history', JSON.stringify(history)); } catch { status('Session finished. Browser storage is unavailable, so history cannot be saved.'); }
   renderHistory();
@@ -278,14 +294,27 @@ function createWorker() {
           sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null });
       }
     }
-    if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) {
+    if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) handleRecognition(data);
+    if (data.type === 'finished') { finishResolve?.(); finishResolve = null; }
+  };
+}
+function handleRecognition(data) {
+  while (true) {
+
       lastRecognitionAt = Date.now(); lastTranscript = data.text.slice(-6000);
       const cursorBefore = cursor, segmentBefore = segmentStart, carryBefore = segmentCarry;
       const matchingBegan = performance.now();
       const heard = normalize(segmentCarry + data.text);
       const hadAnchor = alignmentAnchor !== null;
       const boundary = alignmentAnchor?.cursor === cursor ? locateTranscriptBoundary(alignmentAnchor, heard) : null;
-      const inputOffset = boundary ?? 0;
+      const pageOffset = pageBoundary ? locateTranscriptBoundary(pageBoundary, heard) : null;
+      if (pageBoundary && pageOffset === null && boundary === null) {
+        debug.log('page-boundary-revised', { page: currentPage, final: data.final });
+        // Never search an earlier page's audio as if it belongs to the new page.
+        if (data.final) { pageBoundary = null; alignmentAnchor = null; segmentStart = cursor; segmentCarry = ''; }
+        return;
+      }
+      const inputOffset = boundary ?? pageOffset ?? 0;
       const inputStart = boundary === null ? segmentStart : cursor;
       const match = alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final);
       const matchingMs = performance.now() - matchingBegan;
@@ -295,7 +324,7 @@ function createWorker() {
       const caughtUp = match.cursor >= cursor;
       if (caughtUp) {
         for (const result of match.results) {
-          if (result.index >= cursor) states[result.index] = result.state;
+          if (result.index >= cursor) { states[result.index] = result.state; reviewDetails[result.index] = result.detail; }
         }
         cursor = match.cursor;
       }
@@ -314,7 +343,23 @@ function createWorker() {
         sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null,
         diagnostic: match.diagnostic,
       });
+      if (cursor >= words.length && phase === 'recording') {
+        const nextOffset = inputOffset + match.consumed;
+        completedMatched += states.filter(s => s === 'matched').length;
+        completedReview += states.filter(s => s === 'review').length;
+        completedPages++;
+        debug.log('auto-page-turn', { from: currentPage, to: currentPage === 604 ? 1 : currentPage + 1, nextOffset });
+        currentPage = currentPage === 604 ? 1 : currentPage + 1;
+        renderPassage(true);
+        // Keep the same audio stream and cumulative transcript. Reuse any
+        // already-decoded words beyond this page immediately, even on a final result.
+        alignmentAnchor = { heard, offset: nextOffset, cursor: 0 };
+        pageBoundary = { heard, offset: nextOffset };
+        status(`Listening · continued to page ${currentPage}.`);
+        continue;
+      }
       if (data.final) {
+        pageBoundary = null;
         committed = [...states]; segmentStart = cursor;
         // Carry only audio aligned at the current frontier. A regressed final
         // hypothesis contains old verse audio, not a new unfinished word.
@@ -322,11 +367,11 @@ function createWorker() {
         alignmentAnchor = null;
       }
       paint();
-      if (cursor >= words.length && phase === 'recording') void stopRecording();
-    }
-    if (data.type === 'finished') { finishResolve?.(); finishResolve = null; }
-  };
+      break;
+    
+  }
 }
+
 function loadEngine(file) {
   if (!worker) createWorker();
   phase = 'loading'; $('download').hidden = false; $('download').value = 0; $('model-picker').hidden = true; controls();
@@ -345,7 +390,7 @@ async function releaseAudio() {
   capture = null; source = null; mute = null; analyser = null;
   if (context && context.state !== 'closed') await context.close().catch(() => {});
   context = null;
-  bars.forEach(bar => bar.style.height = '5px');
+  $('record').style.removeProperty('--voice-glow');
 }
 async function failEngine(message) {
   debug.log('engine-error', { message, snapshot: debugSnapshot() });
@@ -364,11 +409,9 @@ async function failEngine(message) {
 function animateLevel() {
   if (!analyser) return;
   const samples = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(samples);
-  for (let i = 0; i < bars.length; i++) {
-    let peak = 0;
-    for (let j = i * 12; j < (i + 1) * 12; j++) peak = Math.max(peak, Math.abs(samples[j] - 128) / 128);
-    bars[i].style.height = `${Math.max(4, Math.min(36, peak * 105))}px`;
-  }
+  let peak = 0;
+  for (const value of samples) peak = Math.max(peak, Math.abs(value - 128) / 128);
+  $('record').style.setProperty('--voice-glow', `${5 + Math.min(15, peak * 60)}px`);
   animation = requestAnimationFrame(animateLevel);
 }
 
@@ -400,6 +443,7 @@ async function startRecording(file) {
     source = context.createMediaStreamSource(media); analyser = context.createAnalyser(); analyser.fftSize = 512;
     mute = context.createGain(); mute.gain.value = 0;
     sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
+    pageBoundary = null;
     alignmentAnchor = null;
     lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
     debug.log('session-start', { sessionId, expected: debugWord(cursor), micSettings });
@@ -468,6 +512,7 @@ $('surah').addEventListener('change', () => {
   if (layouts[key]) openPage(layouts[key][1][0][0], key);
 });
 $('visibility').addEventListener('click', () => {
+  wordInfo.hide();
   memoryMode = !memoryMode;
   const button = $('visibility');
   button.setAttribute('aria-pressed', String(memoryMode));
@@ -493,7 +538,7 @@ async function init() {
     for (const [key, verse] of Object.entries(data.verses)) {
       const [surah, ayah] = key.split(':').map(Number);
       if (!map.has(surah)) map.set(surah, { id: surah, en: verse.suraname_en, ar: verse.suraname_ar, verses: [] });
-      map.get(surah).verses.push({ ...verse, surah, ayah });
+      map.get(surah).verses.push({ ...verse, surah, ayah, wordRules: wordRules(verse, data.rule_names) });
     }
     chapters = [...map.values()].sort((a, b) => a.id - b.id);
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
