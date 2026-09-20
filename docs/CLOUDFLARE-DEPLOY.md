@@ -28,6 +28,7 @@ Use framework **None**, build command `node scripts/build.mjs`, and build output
 
 ## Model
 
-The configured model URL remains `https://model.hafizassist.com/zipformer_p_arabic_v3.int8.onnx`. The R2 bucket must contain that object, with CORS allowing `https://quran.hafizassist.com`. See `R2-SETUP.md`. A build-time `MODEL_URL` variable overrides the committed model configuration; remove an obsolete override.
+The configured model URL remains `https://model.recitealquran.com/zipformer_p_arabic_v3.int8.onnx`. The R2 bucket must contain that object, with CORS allowing `https://recitealquran.com`. See `R2-SETUP.md`. A build-time `MODEL_URL` variable overrides the committed model configuration; remove an obsolete override.
 
 References: [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/get-started/), [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+

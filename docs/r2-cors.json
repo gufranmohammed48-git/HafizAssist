@@ -1,6 +1,6 @@
 [
   {
-    "AllowedOrigins": ["https://quran.hafizassist.com", "http://localhost:5173"],
+    "AllowedOrigins": ["https://quran.hafizassist.com", "https://recitealquran.com", "https://www.recitealquran.com", "http://localhost:5173"],
     "AllowedMethods": ["GET", "HEAD"],
     "ExposeHeaders": ["Content-Length", "ETag"],
     "MaxAgeSeconds": 3600

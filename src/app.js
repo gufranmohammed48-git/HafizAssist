@@ -24,9 +24,9 @@ let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
 let scrollFrame;
-let micNoticeTimer, pendingMicNotice = '';
+let micNoticeTimer, micNoticeExpiresAt = 0, pendingMicNotice = '';
 function hideMicNotice() {
-  clearTimeout(micNoticeTimer); pendingMicNotice = '';
+  clearTimeout(micNoticeTimer); pendingMicNotice = ''; micNoticeExpiresAt = 0;
   const notice = $('mic-notice');
   if (notice.hidePopover && notice.matches(':popover-open')) notice.hidePopover();
   notice.hidden = true;
@@ -34,8 +34,10 @@ function hideMicNotice() {
 function scheduleMicNoticeDismissal() {
   clearTimeout(micNoticeTimer);
   const notice = $('mic-notice');
-  if (!document.hidden && !notice.hidden && !notice.matches(':hover') && !notice.contains(document.activeElement))
-    micNoticeTimer = setTimeout(hideMicNotice, 7000);
+  if (!document.hidden && !notice.hidden) {
+    micNoticeExpiresAt = Date.now() + 5000;
+    micNoticeTimer = setTimeout(hideMicNotice, 5000);
+  }
 }
 function showMicNotice(message) {
   hideMicNotice();
@@ -49,10 +51,6 @@ function showMicNotice(message) {
   scheduleMicNoticeDismissal();
 }
 $('mic-notice-close').addEventListener('click', hideMicNotice);
-$('mic-notice').addEventListener('pointerenter', () => clearTimeout(micNoticeTimer));
-$('mic-notice').addEventListener('focusin', () => clearTimeout(micNoticeTimer));
-$('mic-notice').addEventListener('pointerleave', scheduleMicNoticeDismissal);
-$('mic-notice').addEventListener('focusout', () => queueMicrotask(scheduleMicNoticeDismissal));
 let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
@@ -709,9 +707,11 @@ $('theme').addEventListener('click', () => { const dark = document.body.classLis
 window.addEventListener('pagehide', () => { media?.getTracks().forEach(track => track.stop()); worker?.terminate(); void context?.close(); });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    clearTimeout(micNoticeTimer);
     if (phase === 'recording') void stopRecording('Recitation paused because the page was hidden. Start the microphone again to continue.');
-  } else if (pendingMicNotice) showMicNotice(pendingMicNotice);
+  } else if (pendingMicNotice) {
+    if (!micNoticeExpiresAt) showMicNotice(pendingMicNotice);
+    else if (Date.now() >= micNoticeExpiresAt) hideMicNotice();
+  }
 });
 
 async function init() {
