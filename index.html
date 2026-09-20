@@ -10,7 +10,7 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 18" title="Loaded application version">V18</span>
+    <span class="app-version" aria-label="Application version 20" title="Loaded application version">V20</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
@@ -32,15 +32,19 @@
         <div class="recorder-main">
           <button id="record" class="record-button" aria-label="Start reciting" title="Start reciting" aria-pressed="false" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button>
           <div class="recitation-counts" aria-label="Automatic word tracking counts"><span class="correct-count" title="Words matched by automatic tracking"><strong id="matched">0</strong> Correct</span><span class="mistake-count" title="Words flagged for review by automatic tracking"><strong id="mistakes">0</strong> Mistakes</span></div>
-          <button class="icon-button visibility-toggle" id="visibility" type="button" aria-label="Hide Quran text" aria-pressed="false" title="Hide Quran text">
-        <span id="eye-open"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
-        <span id="eye-closed" hidden><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M9 5.5a11 11 0 0 1 3-.5c6.5 0 10 7 10 7a17 17 0 0 1-3 4M6 6C3.4 8.2 2 12 2 12s3.5 7 10 7a12 12 0 0 0 5-1M10 10a3 3 0 0 0 4 4"/></svg></span>
-      </button>
+          
           <div class="session-inline" aria-label="Recitation time and passage progress">
             <div class="session-meta"><span id="time" title="Recitation time">00:00</span><span id="percent">0%</span></div>
             <progress id="progress" value="0" max="100" aria-label="Passage progress"></progress>
               </div>
-          <button class="text-button" id="reset" aria-label="Reset practice" title="Reset practice">↺ <span>Reset</span></button>
+          <div class="practice-actions">
+            <button class="text-button" id="reset" aria-label="Reset practice" title="Reset practice">↺ <span>Reset</span></button>
+            <button class="icon-button visibility-toggle" id="visibility" type="button" aria-label="Hide Quran text" aria-pressed="false" title="Hide Quran text">
+        <span id="eye-open"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <span id="eye-closed" hidden><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M9 5.5a11 11 0 0 1 3-.5c6.5 0 10 7 10 7a17 17 0 0 1-3 4M6 6C3.4 8.2 2 12 2 12s3.5 7 10 7a12 12 0 0 0 5-1M10 10a3 3 0 0 0 4 4"/></svg></span>
+      </button>
+            <div class="font-controls" role="group" aria-label="Quran font size"><button id="font-smaller" class="icon-button" type="button" aria-label="Decrease Quran font size" title="Smaller text">A−</button><button id="font-larger" class="icon-button" type="button" aria-label="Increase Quran font size" title="Larger text">A+</button></div>
+          </div>
         </div>
         <p id="status" role="status" aria-live="polite" hidden></p>
         <progress id="download" max="100" value="0" hidden aria-label="Model loading progress"></progress>
@@ -49,9 +53,10 @@
     </section>
     <article class="reader" aria-label="Mushaf">
       <div class="surah-heading">
-        <div class="mushaf-heading-info"><h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2><p id="surah-title">Preparing Quran text</p></div>
+        <h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2>
         <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
-        <div class="font-controls" role="group" aria-label="Quran font size"><button id="font-smaller" class="icon-button" type="button" aria-label="Decrease Quran font size" title="Smaller text">A−</button><button id="font-larger" class="icon-button" type="button" aria-label="Increase Quran font size" title="Larger text">A+</button></div>
+        <p id="surah-title">Preparing Quran text</p>
+        
       </div>
       <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>
       <div class="reader-footer"><span id="passage-label">Preparing Quran text</span><div class="legend"><span><i class="green"></i>Matched</span><span><i class="amber"></i>Review</span><span><i class="gray"></i>Upcoming</span></div></div>

@@ -248,11 +248,39 @@ function renderPassage(continuing = false) {
   $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
 function fitMushafLines() {
-  // Keep one readable size. Longer lines wrap instead of silently shrinking the font.
+  // Preserve the source Mushaf lines; reduce only lines that exceed the page width.
   $('ayahs').style.setProperty('--quran-size', `${fontSize}px`);
+  for (const line of $('ayahs').querySelectorAll('.mushaf-line, .bismillah-line')) {
+    let size = fontSize;
+    line.style.setProperty('--quran-size', `${size}px`);
+    const available = line.clientWidth;
+    if (!available) continue;
+    const children = [...line.children];
+    const gap = parseFloat(getComputedStyle(line).columnGap) || 0;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const needed = children.reduce((sum, child) => {
+        const style = getComputedStyle(child);
+        return sum + child.getBoundingClientRect().width + (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
+      }, gap * Math.max(0, children.length - 1));
+      if (needed <= available - 1) break;
+      size *= (available - 2) / needed;
+      line.style.setProperty('--quran-size', `${size}px`);
+    }
+  }
   $('font-smaller').disabled = fontSize <= 24;
   $('font-larger').disabled = fontSize >= 56;
 }
+let fittedWidth = 0, fitFrame;
+new ResizeObserver(entries => {
+  const width = entries[0].contentRect.width;
+  if (Math.abs(width - fittedWidth) < .5) return;
+  fittedWidth = width;
+  cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(() => {
+    fitMushafLines();
+    if (phase === 'recording') followWord();
+  });
+}).observe($('ayahs'));
 function changeFontSize(delta) {
   wordInfo.hide();
   fontSize = Math.max(24, Math.min(56, fontSize + delta));
