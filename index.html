@@ -10,7 +10,7 @@
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 25" title="Loaded application version">V25</span>
+    <span class="app-version" aria-label="Application version 27" title="Loaded application version">V27</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
@@ -26,12 +26,12 @@
           <button id="search-go" type="submit" aria-label="Go to search result" disabled>Go <span aria-hidden="true">↵</span></button>
         </div>
       </form>
-      <p id="search-hint">💡 Try typing: <strong>4</strong> for Page 4 · <strong>s 2</strong> for Chapter 2 · <strong>2:255</strong> for Surah 2 Ayah 255 · <strong>Yasin</strong> or <strong lang="ar">يس</strong></p>
+      <p id="search-hint">Type <strong>7</strong> for page 7 · <strong>2:255</strong> for an ayah · <strong>S 2</strong> or <strong>Baqarah</strong> for a surah</p>
       </div>
       <div class="recorder" aria-label="Recitation controls">
         <div class="recorder-main">
           <button id="record" class="record-button" aria-label="Start reciting" title="Start reciting" aria-pressed="false" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button>
-          <div class="recitation-counts" aria-label="Automatic word tracking counts"><span class="correct-count" title="Words matched by automatic tracking"><strong id="matched">0</strong> Correct</span><span class="mistake-count" title="Words flagged for review by automatic tracking"><strong id="mistakes">0</strong> Mistakes</span></div>
+          <div class="recitation-counts" aria-label="Automatic word tracking counts"><span class="correct-count" title="Words matched by automatic tracking"><strong id="matched">0</strong> Correct</span><span class="mistake-count" title="Words flagged for review by automatic tracking"><strong id="mistakes">0</strong> Mistakes</span><span class="accuracy-count" title="Matched words divided by matched plus review words for this session; automatic tracking estimate"><strong id="accuracy">—</strong> Accuracy</span></div>
           
           <div class="session-inline" aria-label="Recitation time and passage progress">
             <div class="session-meta"><span id="time" title="Recitation time">00:00</span><span id="percent">0%</span></div>
@@ -54,7 +54,7 @@
     <article class="reader" aria-label="Mushaf">
       <div class="surah-heading">
         <h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2>
-        <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled>‹</button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled>›</button></nav>
+        <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg></button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></nav>
         <p id="surah-title">Preparing Quran text</p>
         
       </div>

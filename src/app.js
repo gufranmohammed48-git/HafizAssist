@@ -144,6 +144,8 @@ function paint() {
   const percentage = words.length ? Math.round((matched + review) / words.length * 100) : 0;
   $('matched').textContent = completedMatched + matched;
   $('mistakes').textContent = completedReview + review;
+  const correctTotal = completedMatched + matched, reviewedTotal = completedReview + review;
+  $('accuracy').textContent = correctTotal + reviewedTotal ? `${Math.round(correctTotal / (correctTotal + reviewedTotal) * 100)}%` : '—';
   $('progress').value = percentage;
   $('percent').textContent = `${percentage}%`;
   if (words[cursor]) { chapter = chapters.find(c => c.id === words[cursor].surah); $('surah').value = String(chapter.id); }
@@ -246,6 +248,33 @@ function renderPassage(continuing = false) {
   $('ayahs').scrollTop = 0; controls(); fitMushafLines();
 }
 function fitMushafLines() {
+  const reader = document.querySelector('.reader'), container = $('ayahs');
+  const lines = [...container.querySelectorAll('.mushaf-line, .bismillah-line')];
+  const horizontalSpace = element => {
+    const style = getComputedStyle(element);
+    return ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+      .reduce((sum, key) => sum + (parseFloat(style[key]) || 0), 0);
+  };
+  const naturalWidth = line => {
+    const children = [...line.children];
+    const gap = parseFloat(getComputedStyle(line).columnGap) || 0;
+    return children.reduce((sum, child) => {
+      const style = getComputedStyle(child);
+      return sum + child.getBoundingClientRect().width + (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
+    }, gap * Math.max(0, children.length - 1));
+  };
+  // Measure the actual glyphs at the largest setting, then scale the page and
+  // its text together. The parent width, not the resized reader, is the limit.
+  lines.forEach(line => line.style.setProperty('--quran-size', '56px'));
+  const widest = Math.max(0, ...lines.map(naturalWidth));
+  const parent = reader.parentElement;
+  const maximum = Math.min(850, parent.getBoundingClientRect().width - horizontalSpace(parent));
+  const frame = horizontalSpace(reader) + horizontalSpace(container);
+  if (widest && maximum > frame) {
+    const fullTextWidth = Math.min(widest + 2, maximum - frame);
+    const target = fullTextWidth * fontSize / 56 + frame;
+    reader.style.width = `${Math.min(maximum, Math.max(Math.min(360, maximum), target))}px`;
+  }
   // Preserve the source Mushaf lines; reduce only lines that exceed the page width.
   $('ayahs').style.setProperty('--quran-size', `${fontSize}px`);
   for (const line of $('ayahs').querySelectorAll('.mushaf-line, .bismillah-line')) {
@@ -278,7 +307,7 @@ new ResizeObserver(entries => {
     fitMushafLines();
     if (phase === 'recording') followWord();
   });
-}).observe($('ayahs'));
+}).observe(document.querySelector('main'));
 function changeFontSize(delta) {
   wordInfo.hide();
   fontSize = Math.max(24, Math.min(56, fontSize + delta));
@@ -335,7 +364,7 @@ function searchPassage(event) {
     .replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
   if (/^\d+$/.test(value)) { openPage(Number(value)); return; }
   const key = value.match(/^(\d+)\s*:\s*(\d+)$/);
-  const surah = value.match(/^s\s*(\d+)$/i);
+  const surah = value.match(/^s\s*:?\s*(\d+)$/i);
   if (key) {
     const normalized = `${Number(key[1])}:${Number(key[2])}`;
     if (layouts[normalized]) { openPage(layouts[normalized][1][0][0], normalized); return; }
@@ -347,7 +376,7 @@ function searchPassage(event) {
         || (query.length > 1 && chapters.find(c => searchName(c.en).includes(query) || searchName(c.ar).includes(query)));
     if (found) { openPage(layouts[`${found.id}:1`][1][0][0], `${found.id}:1`); return; }
   }
-  status('Try a page (4), chapter (s 2), verse (2:255), or surah name (Yasin / يس).', true);
+  status('Try a page (7), chapter (S:2), verse (2:255), or surah name (Baqarah).', true);
 }
 
 function renderHistory() {

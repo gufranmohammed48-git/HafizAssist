@@ -136,3 +136,13 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .search-surah-row #search-hint{grid-column:3;grid-row:2;margin:0 2px 12px;text-align:left;overflow-wrap:anywhere}
 .search-surah-row #search-lock-info{bottom:auto;height:54px}
 .search-surah-row #search-lock-tip{top:61px}
+/* V26: compact examples, tracking accuracy, and optically centered navigation. */
+.search-surah-row #search-hint{font-size:10px;line-height:1.5;margin-bottom:10px}
+.accuracy-count{color:var(--ink)}
+.recorder-main{flex-wrap:wrap}
+.surah-heading .page-navigation{gap:6px;align-items:center;line-height:1}
+.surah-heading #next-page,.surah-heading #previous-page{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;min-width:34px;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--soft)}
+.page-navigation svg{display:block;flex-shrink:0}
+#page-label{display:inline-flex;align-items:center;justify-content:center;height:34px;line-height:1;font-variant-numeric:tabular-nums}
+.reader-footer{flex-wrap:wrap}
+@media(max-width:600px){.search-surah-row #search-hint{font-size:10px}.surah-heading .page-navigation{gap:3px}.surah-heading #next-page,.surah-heading #previous-page{width:30px;min-width:30px;height:32px;min-height:32px}#page-label{height:32px}.recorder-main .recitation-counts{flex-wrap:wrap;row-gap:4px}}
