@@ -12,7 +12,7 @@ In the connected Cloudflare project's build settings use:
 | Build command | `node scripts/build.mjs` |
 | Deploy command | `npx wrangler deploy --assets=./dist` |
 
-The configuration's Worker name is `hafizassist`. If your existing Cloudflare Worker has a different name, set `name` in `wrangler.jsonc` to that exact name before pushing. The custom website domain and R2 bucket name are not necessarily the Worker name.
+The configuration's Worker name is `myproject`, matching the connected Worker for recitealquran.com. Observability is enabled in the configuration to preserve the requested logging setting on deployment. The custom website domain and R2 bucket name are not necessarily the Worker name. Builds for the retired `hafizassist` Worker should be disconnected when it is no longer used.
 
 Replace any existing deploy command that uses `--assets .`, `--assets=.` or the repository root. Command-line flags override the file configuration. Keep the root directory at the repository root: the build script runs there and generates `dist`; only the assets directory should point to `dist`.
 
