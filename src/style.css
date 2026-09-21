@@ -131,3 +131,8 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 .mushaf-line .ayah-number{font-size:.36em;min-width:1.8em;width:auto;height:2em;margin:0 .5em;flex:0 0 auto}
 .bismillah-line{flex-wrap:nowrap;white-space:nowrap}
 @media(max-width:600px){.mushaf-line{column-gap:2px}.opening-page .mushaf-line{column-gap:4px}}
+/* Keep examples beneath only the text-search column. */
+.search-surah-row{row-gap:6px}
+.search-surah-row #search-hint{grid-column:3;grid-row:2;margin:0 2px 12px;text-align:left;overflow-wrap:anywhere}
+.search-surah-row #search-lock-info{bottom:auto;height:54px}
+.search-surah-row #search-lock-tip{top:61px}
