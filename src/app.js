@@ -1,7 +1,7 @@
 import { alignSegment, normalize, locateTranscriptBoundary } from './alignment.js';
 import { setupOffline, refreshOfflineStatus } from './offline.js';
 import { createDebugPanel } from './debug.js';
-import { createWordInfo, wordRules } from './word-info.js';
+import { createWordInfo, wordRules, referenceWords } from './word-info.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
@@ -217,7 +217,7 @@ function renderPassage(continuing = false) {
         const text = ['بِسْمِ', 'اللَّهِ', 'الرَّحْمَٰنِ', 'الرَّحِيمِ'];
         opening.aya_phonemes_list.forEach((phoneme, position) => {
           appendWord(row, { surah: verse.surah, ayah: 1, position, bismillah: true,
-            phoneme: normalize(phoneme), accessible: text[position], rules: opening.wordRules[position] }, text[position]);
+            phoneme: normalize(phoneme), accessible: text[position], rules: opening.wordRules[position], reference: opening.referenceWords[position] }, text[position]);
         });
         $('ayahs').append(row);
       }
@@ -228,7 +228,7 @@ function renderPassage(continuing = false) {
     verse.aya_phonemes_list.forEach((phoneme, position) => {
       if (layout[position][0] !== currentPage) return;
       appendWord(pageLine(layout[position][1]), { surah: verse.surah, ayah: verse.ayah, position,
-        phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`, rules: verse.wordRules[position]
+        phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`, rules: verse.wordRules[position], reference: verse.referenceWords[position]
       }, glyphs[position] || readable[position] || '…');
     });
     if (layout.at(-1)[0] === currentPage) {
@@ -293,6 +293,12 @@ function fitMushafLines() {
       size *= (available - 2) / needed;
       line.style.setProperty('--quran-size', `${size}px`);
     }
+  }
+  if (document.documentElement.dataset.layout === 'mobile' && currentPage <= 2 && lines.length) {
+    // The opening pages use one shared fitted size on phones, rather than a
+    // different size for each line. Desktop keeps its existing fitting behavior.
+    const commonSize = Math.min(...lines.map(line => parseFloat(line.style.getPropertyValue('--quran-size')) || fontSize));
+    lines.forEach(line => line.style.setProperty('--quran-size', `${commonSize}px`));
   }
   $('font-smaller').disabled = fontSize <= 24;
   $('font-larger').disabled = fontSize >= 56;
@@ -752,16 +758,23 @@ async function init() {
     const layoutResponse = await fetch(new URL('../data/mushaf-layout.json', import.meta.url));
     if (!layoutResponse.ok) throw new Error('Mushaf page data could not be loaded. Reload the page to try again.');
     layouts = await layoutResponse.json();
+    let tajweed = {}, tajweedUnavailable = false;
+    try {
+      const referenceResponse = await fetch(new URL('../data/tajweed-words.json', import.meta.url));
+      if (!referenceResponse.ok) throw new Error('Tajweed reference unavailable');
+      tajweed = await referenceResponse.json();
+    } catch { tajweedUnavailable = true; }
     const map = new Map();
     for (const [key, verse] of Object.entries(data.verses)) {
       const [surah, ayah] = key.split(':').map(Number);
       if (!map.has(surah)) map.set(surah, { id: surah, en: verse.suraname_en, ar: verse.suraname_ar, verses: [] });
-      map.get(surah).verses.push({ ...verse, surah, ayah, wordRules: wordRules(verse, data.rule_names) });
+      map.get(surah).verses.push({ ...verse, surah, ayah, wordRules: wordRules(verse, data.rule_names), referenceWords: referenceWords(verse, tajweed[surah]?.[ayah]) });
     }
     chapters = [...map.values()].sort((a, b) => a.id - b.id);
     chapters.forEach(c => c.verses.sort((a, b) => a.ayah - b.ayah));
     $('surah').replaceChildren(...chapters.map(c => new Option(`${c.id}. ${c.en} — \u2067${c.ar}\u2069`, String(c.id))));
     openPage(1);
+    if (tajweedUnavailable) status('The full Tajweed reference could not load. Basic annotations are available; reopen while connected to load the full reference.', true);
     cancelAnimationFrame(scrollFrame); // Keep the controls visible on initial load.
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }

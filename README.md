@@ -4,7 +4,9 @@ A browser-based Quran memorization companion. Read a selected passage, recite in
 
 ## Run locally
 
-Requires Node.js 20.11 or newer. There are no npm dependencies to install.
+Use Python 3 with `py scripts/serve.py` (or `python scripts/serve.py`). This launcher serves both the project files and the public asset folder; plain `python -m http.server` from the repository root does not provide that mapping. No packages need to be installed. Open http://localhost:5173 or http://localhost:5173/mobile.html and leave the terminal open. Press Ctrl+C to stop.
+
+Alternatively, use Node.js 20.11 or newer. There are no npm dependencies to install.
 
 ```powershell
 node scripts/serve.mjs
@@ -128,4 +130,13 @@ Completing a page turns to the next page without restarting the microphone, work
 Hover or keyboard-focus a word for its reference phonemes and available Madd/Qalqalah annotations from the bundled Quran data. These are learning annotations, not measured Tajweed feedback; absence of an annotation does not imply that no Tajweed rules apply. Review tooltips explain that a confident match was unavailable, show the unmatched recognized fragment when available, and identify the later word used for recovery. They do not diagnose a specific pronunciation error. Hidden-text mode also conceals tooltip text.
 
 The dotted waveform has been removed. A red microphone ripple, with a glow responding to input level, indicates active recording. Reduced-motion preferences disable the ripple. New tooltip code is cached for offline use. No tests, builds, browser checks, or microphone sessions were run.
+
+
+## Recite Al Quran desktop and mobile pages (V28)
+
+The browser title is Recite Al Quran · Quran Recitation Tracker. `index.html` is the desktop entry and `mobile.html` is its dedicated mobile copy, sharing scripts and styles. `src/entry.js` redirects phone browsers to the mobile entry while preserving query parameters and fragments. Direct visits to mobile.html also work on desktop. Cloudflare may display the canonical URL /mobile. Both documents, the routing script, and the Tajweed reference are included in the offline shell. Keep shared HTML and version badges synchronized when editing either page.
+
+On mobile.html only, Mushaf pages 1 and 2 use the smallest fitted line size across the whole opening page, so every line uses the same font size. Desktop fitting is unchanged. Other pages retain the existing line fitting.
+
+Hover details now use the original Desktop-HafizAssist per-word IPA and letter-level Tajweed annotations from public/data/tajweed-words.json. Words are mapped by their written letters to handle differing token boundaries; unmatched words retain the basic reference annotations. These reference rules do not grade the recitation. To regenerate the imported data, run `node scripts/import-tajweed.mjs` followed by the path to the original phonemes-data.js. No tests, builds, browser checks, or microphone tests were run for V28.
 

@@ -146,3 +146,27 @@ body.dark{--card:#1c2722;--paper:#15231b;--ink:#e3e8de;--muted:#a0afa2;--border:
 #page-label{display:inline-flex;align-items:center;justify-content:center;height:34px;line-height:1;font-variant-numeric:tabular-nums}
 .reader-footer{flex-wrap:wrap}
 @media(max-width:600px){.search-surah-row #search-hint{font-size:10px}.surah-heading .page-navigation{gap:3px}.surah-heading #next-page,.surah-heading #previous-page{width:30px;min-width:30px;height:32px;min-height:32px}#page-label{height:32px}.recorder-main .recitation-counts{flex-wrap:wrap;row-gap:4px}}
+/* Shared, interactive word feedback on desktop and mobile. */
+#word-info{pointer-events:auto;white-space:normal;width:350px;max-width:calc(100vw - 16px);overscroll-behavior:contain}
+.word-info-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:10px}
+#word-info .word-info-close{font-size:22px;min-width:32px;min-height:32px;padding:0;line-height:1}
+.word-info-field{margin:10px 0}.word-info-field>strong{font-size:11px;color:var(--muted)}
+.word-info-arabic{font-family:'Traditional Arabic','Segoe UI',serif;font-size:23px;line-height:1.7}
+#word-info .word-info-note{font-size:11px;color:var(--muted);line-height:1.6;margin:9px 0}
+#word-info details{border-top:1px solid var(--border);padding-top:10px;margin-top:12px}
+#word-info summary{cursor:pointer;color:var(--green);font-weight:600;padding:4px 0}
+.word-info-reference ul{list-style:none;padding:0;margin:6px 0;line-height:1.9}
+.word-info-reference li{direction:ltr;unicode-bidi:plaintext}
+/* Compact translucent word card, shared by desktop and mobile. */
+#word-info{width:max-content;max-width:min(360px,calc(100vw - 16px));padding:10px 12px;font-size:12px;line-height:1.55;background:var(--card);background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:12px;box-shadow:0 8px 28px #0003}
+#word-info.is-review{max-width:min(330px,calc(100vw - 16px))}
+#word-info .word-info-heading{gap:10px;margin:0 0 6px;padding:0 0 6px;align-items:center;flex-wrap:wrap;position:relative;padding-right:27px}
+.word-info-word{font-family:'Traditional Arabic','Segoe UI',serif;font-size:12px;line-height:1.5}
+.word-info-pronunciation{color:var(--green);font-size:12px;unicode-bidi:isolate;overflow-wrap:anywhere}
+#word-info .word-info-close{position:absolute;right:-4px;top:0;min-width:26px;min-height:30px;font-size:21px;color:var(--muted)}
+#word-info .word-info-reference ul{margin:0;line-height:1.65}
+#word-info .word-info-field{margin:6px 0}
+#word-info .word-info-note{margin:6px 0}
+#word-info details{margin-top:8px;padding-top:6px}
+@media(prefers-reduced-transparency:reduce){#word-info{background:var(--card);backdrop-filter:none;-webkit-backdrop-filter:none}}
+#word-info .word-info-heading{padding-right:0}

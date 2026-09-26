@@ -49,3 +49,7 @@ The V6 visibility button's compact shape, selected state, and focus treatment dr
 WaveformPlayer by ruixen.ui: https://21st.dev/@ruixen.ui/components/waveform-player
 
 Retrieved through the 21st.dev connector. The compact forty-bar waveform layout was adapted to vanilla JavaScript/CSS and connected to a live microphone analyser. No remote demo audio or analytics scripts are used.
+
+## Per-word Tajweed and phoneme reference
+
+`public/data/tajweed-words.json` is imported from the owner's Desktop-HafizAssist `phonemes-data.js` using `scripts/import-tajweed.mjs`. The source file describes itself as generated from `data/phonemes.json`. The original per-word IPA strings and letter/rule annotations are preserved for display; they do not replace the Zipformer alignment phonemes or assess the user's Tajweed. No additional upstream license is asserted by this import.

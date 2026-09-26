@@ -1,6 +1,8 @@
 // Bounded, in-memory diagnostics. No audio samples, uploads, or persistent logs.
 export function createDebugPanel(snapshot) {
   const panel = document.getElementById('debug-panel');
+  // Uncomment the debug panel in the HTML to restore diagnostics.
+  if (!panel) return { log() {} };
   const output = document.getElementById('debug-output');
   const notice = document.getElementById('debug-notice');
   const events = [];
