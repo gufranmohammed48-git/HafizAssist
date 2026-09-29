@@ -15,6 +15,7 @@ await cp(resolve(root, 'public'), out, { recursive: true, filter: (path) => !pat
 await cp(resolve(root, 'src'), resolve(out, 'src'), { recursive: true });
 await cp(resolve(root, 'index.html'), resolve(out, 'index.html'));
 await cp(resolve(root, 'mobile.html'), resolve(out, 'mobile.html'));
+await cp(resolve(root, 'test.html'), resolve(out, 'test.html'));
 await cp(resolve(root, 'licenses'), resolve(out, 'licenses'), { recursive: true });
 await writeFile(resolve(out, 'model-config.json'), configText);
 // A changed deployment URL also needs a distinct, atomic offline cache, even

@@ -1,13 +1,14 @@
 <!doctype html>
-<html lang="en" data-layout="mobile">
+<html lang="en" data-layout="book">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#174f42"><meta name="description" content="Practice Quran memorization with private, offline recitation tracking and a full Mushaf.">
   <title>Recite Al Quran · Quran Recitation Tracker</title>
-  <script src="./src/entry.js"></script>
+
   <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/book.css">
 </head>
-<body>
+<body class="book-view">
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
@@ -87,9 +88,8 @@
     <div role="status" aria-live="polite" aria-atomic="true"><strong>Microphone off</strong><p id="mic-notice-message"></p></div>
     <button id="mic-notice-close" class="icon-button" type="button" aria-label="Dismiss microphone notification">×</button>
   </div>
-  <script type="module" src="./src/app.js"></script>
+  <script src="./src/book.js"></script>
 </body>
 </html>
-
 
 

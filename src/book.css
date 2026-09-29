@@ -1,0 +1,82 @@
+/* Book preview only. All application behavior lives in the shared app. */
+body.book-view{background:#e9e6dd;min-height:100vh}
+body.book-view.dark{background:#0e1712}
+.book-view .header{height:0;padding:0;margin:0}
+.book-view .header .bismillah{display:none}
+.book-view .header .app-version{position:fixed;top:10px;right:10px;z-index:12;background:var(--paper)}
+.book-view main{max-width:1180px;padding:38px 24px 32px;margin-left:76px;margin-right:76px}
+.book-view .reader{margin:0 auto;padding:0 28px;border-radius:3px;box-shadow:0 20px 65px #0002,inset 0 0 0 5px var(--paper),inset 0 0 0 6px var(--border);background:linear-gradient(90deg,#00000004,transparent 5%,transparent 95%,#00000005),var(--paper)}
+.book-view .surah-heading{padding:12px 0}
+.book-view .reader-footer{font-size:10px;padding:13px 0}
+.book-view .reader-footer .legend{display:none}
+.book-view .practice{position:fixed;top:80px;bottom:auto;left:12px;z-index:10;width:52px;padding:6px;border-radius:28px;background:var(--card);box-shadow:0 8px 35px #0002}
+.book-view .recorder{padding:0;border:0}
+.book-view .recorder-main{gap:10px;flex-wrap:nowrap;flex-direction:column}
+.book-view .recorder-main .recitation-counts{gap:12px;font-size:10px}
+.book-view .recitation-counts strong{font-size:17px}
+.book-view .session-inline{width:70px;min-width:50px}
+.book-view #book-menu,.book-view .record-button{display:flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;min-width:40px;min-height:40px;border:0;border-radius:50%;padding:8px}
+.book-view #status,.book-view #model-picker{width:min(280px,calc(100vw - 100px));white-space:normal;font-size:12px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px}
+.book-view #download{width:40px}
+.book-view #model-picker input{max-width:100%}
+.book-view #mic-notice{bottom:calc(110px + env(safe-area-inset-bottom))}
+#book-settings{position:fixed;inset:0 auto 0 0;margin:0;width:min(360px,calc(100vw - 24px));height:100dvh;max-height:100dvh;box-sizing:border-box;overflow:auto;padding:24px;border:0;border-right:1px solid var(--border);border-radius:0;background:var(--card);color:var(--ink);box-shadow:8px 0 40px #0002;z-index:15}
+#book-settings::backdrop{background:#07181050}
+#book-settings .book-session .recitation-counts{display:flex;justify-content:space-between;gap:10px;font-size:11px}
+#book-settings .book-session strong{display:block;font-size:20px}
+#book-settings .session-inline{display:block;width:100%;max-width:none;margin-top:14px}
+@media(min-width:1000px){
+  .book-view.book-settings-open main{margin-left:436px;margin-right:24px}
+  .book-view.book-settings-open .practice{left:372px}
+}
+.book-settings-heading{display:flex;justify-content:flex-end;align-items:center;margin-bottom:4px}
+#book-close{font-size:26px}
+#book-settings section:first-of-type{border-top:0;padding-top:0}
+#book-settings section{padding:16px 0;border-top:1px solid var(--border)}
+#book-settings h3{font-size:12px;font-weight:600;margin:0 0 12px}
+#book-settings .search-surah-row{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px}
+#book-settings .unified-search{grid-column:1 / -1;grid-row:2}
+#book-settings #search-hint{grid-column:1 / -1;grid-row:3;margin:0;line-height:1.6}
+#book-settings #search-lock-info{inset:0;height:100%}
+#book-settings #search-lock-tip{top:100%}
+#book-settings .practice-actions{justify-content:flex-start;flex-wrap:wrap;margin:0;gap:8px}
+#book-settings .practice-actions #theme{flex-shrink:0;width:34px;min-width:34px;padding:6px}
+#book-settings .visibility-toggle{display:flex;align-items:center;justify-content:center}
+#book-settings .font-controls{margin-left:auto}
+#book-settings .history{margin:12px 0;padding:12px}
+#book-settings footer{margin-top:16px}
+.book-standard-link{display:block;text-align:center;color:var(--green);font-size:12px;margin-top:18px}
+/* Preview-only opening and closing motion. Discrete display/overlay
+   transitions keep the closing surface visible until its shrink finishes. */
+@keyframes book-popup-in{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+.book-view :is(#book-settings,#voice-dialog,#word-info,#mic-notice,#search-lock-tip,#model-picker){
+  opacity:1;scale:1;transform-origin:center;
+  transition:scale 320ms cubic-bezier(.2,.7,.2,1),opacity 320ms ease,display 320ms allow-discrete,overlay 320ms allow-discrete;
+}
+.book-view #book-settings{transform-origin:left center}
+.book-view :is(#voice-dialog:not([open]),#word-info[hidden],#mic-notice[hidden],#search-lock-tip[hidden],#model-picker[hidden]){opacity:0;scale:0;pointer-events:none}
+.book-view #book-settings:not([open]){opacity:0;scale:0 1;pointer-events:none}
+.book-view :is(#book-settings,#voice-dialog)::backdrop{opacity:0;transition:opacity 320ms ease,display 320ms allow-discrete,overlay 320ms allow-discrete}
+.book-view :is(#book-settings,#voice-dialog)[open]::backdrop{opacity:1}
+@starting-style{
+  .book-view #book-settings[open]{opacity:0;scale:0 1}
+  .book-view #voice-dialog[open],.book-view #word-info:not([hidden]),.book-view #mic-notice:not([hidden]),.book-view #search-lock-tip:not([hidden]),.book-view #model-picker:not([hidden]){opacity:0;scale:0}
+  .book-view :is(#book-settings,#voice-dialog)[open]::backdrop{opacity:0}
+}
+.book-view #word-info details[open] .word-info-reference{transform-origin:top left;animation:book-popup-in 320ms cubic-bezier(.2,.7,.2,1)}
+@media(prefers-reduced-motion:reduce){
+  .book-view :is(#book-settings,#voice-dialog,#word-info,#mic-notice,#search-lock-tip,#model-picker),.book-view :is(#book-settings,#voice-dialog)::backdrop{transition:none}
+  .book-view #word-info details[open] .word-info-reference{animation:none}
+}
+@media(max-width:600px){
+  .book-view main{padding:76px 8px 24px;margin:0}
+  .book-view .reader{padding:0 12px}
+  .book-view .surah-heading{gap:4px}
+  .book-view .surah-heading h2{font-size:17px}
+  .book-view .surah-heading p{font-size:9px}
+  .book-view .practice{position:absolute;top:12px;left:12px;width:auto;padding:4px 6px}
+  .book-view .recorder-main{gap:8px!important;flex-direction:row}
+  .book-view .recorder-main .recitation-counts{gap:8px!important;font-size:9px}
+  .book-view .session-inline{display:none}
+  #book-settings{padding:20px}
+}

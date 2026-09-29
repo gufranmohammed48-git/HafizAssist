@@ -294,9 +294,9 @@ function fitMushafLines() {
       line.style.setProperty('--quran-size', `${size}px`);
     }
   }
-  if (document.documentElement.dataset.layout === 'mobile' && currentPage <= 2 && lines.length) {
-    // The opening pages use one shared fitted size on phones, rather than a
-    // different size for each line. Desktop keeps its existing fitting behavior.
+  if (lines.length && (document.documentElement.dataset.layout !== 'mobile' || currentPage <= 2)) {
+    // Use a shared fitted size throughout each desktop page, and retain the
+    // uniform opening-page size on the dedicated mobile layout.
     const commonSize = Math.min(...lines.map(line => parseFloat(line.style.getPropertyValue('--quran-size')) || fontSize));
     lines.forEach(line => line.style.setProperty('--quran-size', `${commonSize}px`));
   }
@@ -750,8 +750,8 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function init() {
-  renderHistory();
   try {
+    renderHistory();
     const response = await fetch(new URL('../data/quran.json', import.meta.url));
     if (!response.ok) throw new Error('Quran reference data could not be loaded. Reload the page to try again.');
     const data = await response.json();
