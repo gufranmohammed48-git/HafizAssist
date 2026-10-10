@@ -13,7 +13,7 @@ export function createDebugPanel(snapshot) {
     userAgent: navigator.userAgent, language: navigator.language,
     cores: navigator.hardwareConcurrency, memoryGB: navigator.deviceMemory,
     model: 'zipformer_p_arabic_v3.int8.onnx', sensitivity: 'balanced',
-    matchingPolicy: 'consumed-transcript-boundary-with-earliest-occurrence',
+    matchingPolicy: 'text-and-token-time-boundary-with-settled-endings-and-supported-recovery',
   };
   function report() {
     return { schema: 1, capturedAt: new Date().toISOString(), environment,

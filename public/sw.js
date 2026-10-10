@@ -1,11 +1,11 @@
 // Increment with every delivered change; keep index.html's badge in sync.
-const VERSION = 'V44';
+const VERSION = 'V54';
 const PREFIX = `hafizassist-shell:${self.registration.scope}:`;
 const SHELL = PREFIX + VERSION;
 const url = path => new URL(path, self.registration.scope).href;
 const FILES = [
-  'index.html', 'mobile.html', 'test.html', 'src/book.js', 'src/book.css', 'src/entry.js', 'favicon.svg', 'src/app.js', 'src/alignment.js', 'src/debug.js', 'src/word-info.js',
-  'src/offline.js', 'src/style.css', 'src/voice-search-worker.js', 'data/quran.json', 'data/HafsSmart.ttf',
+  'index.html', 'mobile.html', 'test.html', 'src/book.js', 'src/book.css', 'src/entry.js', 'favicon.svg', 'src/app.js', 'src/alignment.js', 'src/recognition-boundary.js', 'src/teacher-mode.js', 'src/madd.js', 'src/debug.js', 'src/word-info.js',
+  'src/offline.js', 'src/style.css', 'src/voice-search-worker.js', 'data/quran.json', 'data/HafsSmart.ttf', 'data/AmiriQuran-Regular.ttf',
   'data/mushaf-layout.json', 'data/tajweed-words.json', 'assets/bismillah.png',
   'recognizer-worker.js', 'audio-worklet.js', 'models/tokens.txt', 'model-config.json',
   'vendor/sherpa-onnx-asr.js', 'vendor/sherpa-onnx-wasm-main-asr.js',

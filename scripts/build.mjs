@@ -16,6 +16,9 @@ await cp(resolve(root, 'src'), resolve(out, 'src'), { recursive: true });
 await cp(resolve(root, 'index.html'), resolve(out, 'index.html'));
 await cp(resolve(root, 'mobile.html'), resolve(out, 'mobile.html'));
 await cp(resolve(root, 'test.html'), resolve(out, 'test.html'));
+await mkdir(resolve(out, 'docs'), { recursive: true });
+await cp(resolve(root, 'docs/TEACHER-MODE.md'), resolve(out, 'docs/TEACHER-MODE.md'));
+await cp(resolve(root, 'docs/teacher-mode-preview.html'), resolve(out, 'docs/teacher-mode-preview.html'));
 await cp(resolve(root, 'licenses'), resolve(out, 'licenses'), { recursive: true });
 await writeFile(resolve(out, 'model-config.json'), configText);
 // A changed deployment URL also needs a distinct, atomic offline cache, even

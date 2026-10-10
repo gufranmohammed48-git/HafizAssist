@@ -3,6 +3,8 @@ let recognizer = null;
 let stream = null;
 let sessionId = 0;
 let lastText = '';
+let maddTiming = false, timingSegment = 0;
+let audioClockMs = 0, lastTextChangedMs = 0, quietMs = 0, lastSettledText = '';
 let runtimePromise;
 const modelName = 'zipformer_p_arabic_v3.int8.onnx';
 const modelUrl = new URL(`models/${modelName}`, self.location.href).href;
@@ -84,6 +86,8 @@ function newStream() {
   stream = recognizer.createStream();
   if (!stream.handle) throw new Error('Could not create a speech stream. Reload the page and try again.');
   lastText = '';
+  timingSegment = 0;
+  audioClockMs = 0; lastTextChangedMs = 0; quietMs = 0; lastSettledText = '';
   stream.acceptWaveform(16000, new Float32Array(4800));
 }
 
@@ -91,11 +95,29 @@ function decode(final = false) {
   while (recognizer.isReady(stream)) recognizer.decode(stream);
   const result = recognizer.getResult(stream);
   const endpoint = final || recognizer.isEndpoint(stream);
-  if (result.text !== lastText || endpoint) {
-    lastText = result.text;
-    send('result', { text: result.text || '', final: endpoint });
+  const text = result.text || '';
+  if (text !== lastText) { lastTextChangedMs = audioClockMs; lastSettledText = ''; }
+  const stableForMs = audioClockMs - lastTextChangedMs;
+  // A quiet, stable hypothesis can finish the vowel-review wait without
+  // requiring the learner to repeat a word or wait for the 2.4s endpoint.
+  // This is not a final result: missing core sounds still cannot commit.
+  const settled = !endpoint && text.length > 0 && stableForMs >= 640 && quietMs >= 640;
+  if (text !== lastText || endpoint || (settled && lastSettledText !== text)) {
+    lastText = text;
+    if (settled) lastSettledText = text;
+    const timing = {
+      timingProtocol: 1, timingEnabled: maddTiming, timingSegment,
+      resultFields: maddTiming ? Object.keys(result) : [],
+      // Token times also rebase consumed text after a CTC prefix revision.
+      tokens: Array.isArray(result.tokens) ? result.tokens : [],
+      timestamps: Array.isArray(result.timestamps) ? result.timestamps : [],
+    };
+    send('result', { text, final: endpoint, settled, stableForMs, quietMs, ...timing });
   }
-  if (endpoint && !final) { recognizer.reset(stream); lastText = ''; }
+  if (endpoint && !final) {
+    recognizer.reset(stream); lastText = ''; timingSegment++;
+    lastTextChangedMs = audioClockMs; quietMs = 0; lastSettledText = '';
+  }
 }
 
 self.onmessage = async ({ data }) => {
@@ -132,14 +154,19 @@ self.onmessage = async ({ data }) => {
       send('ready');
     } else if (data.type === 'start') {
       if (!recognizer) throw new Error('The speech model is not ready.');
-      sessionId = data.sessionId; newStream(); send('started');
+      sessionId = data.sessionId; maddTiming = data.maddTiming === true; newStream(); send('started');
     } else if (data.type === 'audio' && stream && data.sessionId === sessionId) {
       const began = performance.now();
       let squares = 0, peak = 0;
       for (const value of data.samples) { squares += value * value; peak = Math.max(peak, Math.abs(value)); }
+      const rms = Math.sqrt(squares / Math.max(1, data.samples.length));
+      const audioMs = data.samples.length / 16;
+      audioClockMs += audioMs;
+      // Conservative quiet gate. It only releases a stable word-ending wait;
+      // it never advances a word because of elapsed time alone.
+      quietMs = rms < .008 && peak < .04 ? quietMs + audioMs : 0;
       stream.acceptWaveform(16000, data.samples); decode();
-      send('ack', { processMs: performance.now() - began, audioMs: data.samples.length / 16,
-        rms: Math.sqrt(squares / Math.max(1, data.samples.length)), peak });
+      send('ack', { processMs: performance.now() - began, audioMs, rms, peak });
     } else if (data.type === 'finish' && data.sessionId === sessionId) {
       if (stream) {
         stream.acceptWaveform(16000, new Float32Array(8000));

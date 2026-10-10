@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teacher mode design · Recite Al Quran</title>
+  <style>
+    @font-face{font-family:BookQuran;src:url('../data/AmiriQuran-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+    :root{color-scheme:dark;--bg:#0e1712;--paper:#16251c;--card:#19281f;--ink:#e9e7dd;--muted:#a5b3a7;--line:#344a3a;--green:#98c4a1;--amber:#e0b980}
+    *{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:radial-gradient(ellipse at 50% 20%,#213529 0,transparent 62%),var(--bg);color:var(--ink);font-family:system-ui,sans-serif;line-height:1.5;min-height:100dvh}
+    button,input{font:inherit}button,a,input{ -webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:default;opacity:.38}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:4px}a{color:var(--green)}
+    header{position:relative;display:flex;justify-content:center;padding:28px 90px 12px;text-align:center}header p{margin:0;font-size:12px;letter-spacing:.05em;color:var(--muted)}.version{position:fixed;top:12px;right:12px;z-index:2;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);font-size:11px;font-weight:700;color:var(--green)}
+    .stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,540px) minmax(0,1fr);gap:24px;align-items:center;padding:24px 24px 12px;max-width:1600px;margin:0 auto}.settings{justify-self:end;max-width:240px;width:100%;padding:21px;border:1px solid var(--line);background:#19281fe6;border-radius:18px;box-shadow:0 16px 50px #0002}.settings h1{font-size:16px;margin:0 0 18px;font-weight:600}.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}.switch{appearance:none;flex:0 0 40px;width:40px;height:24px;border:1px solid #607166;border-radius:20px;background:#35413a;position:relative;cursor:pointer;margin:0;transition:background .25s}.switch:before{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;background:#d8e0d8;border-radius:50%;transition:transform .25s}.switch:checked{background:#477553;border-color:#689971}.switch:checked:before{transform:translateX(16px)}.options{padding-top:19px}.check-row{display:flex;gap:9px;align-items:flex-start;font-size:12px;color:var(--ink);margin:0 0 12px}.check-row input{accent-color:#77a985;margin-top:3px}.hint{font-size:11px;color:var(--muted);margin:14px 0 0}.examples{border-top:1px solid var(--line);margin-top:20px;padding-top:16px}.examples p{margin:0 0 9px;font-size:11px;color:var(--muted)}.button{display:block;width:100%;border:1px solid var(--line);border-radius:8px;background:#22372a;color:var(--ink);font-size:12px;padding:9px 11px;text-align:left;margin-top:8px;transition:background .2s}.button:hover:not(:disabled){background:#304b39}.button.secondary{background:transparent;color:var(--muted)}
+    .book{width:100%;position:relative;border:1px solid #3a4c3d;border-radius:4px;background:linear-gradient(90deg,#ffffff03,transparent 5%,transparent 95%,#00000012),var(--paper);padding:23px 30px 20px;box-shadow:0 22px 70px #0003,inset 0 0 0 5px var(--paper),inset 0 0 0 6px #2b4031}.chapter{font-family:BookQuran,serif;font-size:29px;line-height:1.6;text-align:center;border:1px solid var(--line);border-radius:30px;margin:0 15px 22px;padding:3px 12px;font-weight:400}.quran{font-family:BookQuran,serif;font-size:clamp(27px,3.1vw,35px);font-weight:400;line-height:2.15;text-align:center;direction:rtl}.quran p{margin:0;white-space:normal}.ayah{font-family:BookQuran,serif;font-size:.67em;color:#b4bc9a;margin-inline-start:5px}.target{border-radius:5px;transition:background .3s,color .3s;box-decoration-break:clone;-webkit-box-decoration-break:clone}.target.active{background:#6485693d;color:#b8e2c2}.target.retry{background:#99744532;box-shadow:inset 0 -2px #b89258;color:#f1d5ad}.page{font-family:BookQuran,serif;text-align:center;font-size:20px;color:var(--muted);margin-top:22px}.book-caption{text-align:center;font-size:11px;color:var(--muted);margin:12px 0 0}
+    .feedback-slot{justify-self:start;max-width:240px;width:100%;min-width:0}.feedback{padding:20px;border:1px solid #4d6a52;border-radius:18px;background:#19281fe8;box-shadow:0 15px 50px #0002;backdrop-filter:blur(12px);opacity:0;transform:scale(.78);transform-origin:center left;visibility:hidden;transition:opacity .5s ease,transform .55s cubic-bezier(.2,.7,.2,1),visibility .55s}.feedback.open{opacity:1;transform:scale(1);visibility:visible}.feedback .label{font-size:12px;color:var(--green);margin:0}.feedback .arabic{font-family:BookQuran,serif;font-size:35px;font-weight:400;line-height:1.8;direction:rtl;text-align:center;margin:9px 0 8px}.feedback .turn{color:var(--muted);font-size:11px;text-align:center;margin:0 0 12px;min-height:32px}.feedback-actions{display:flex;gap:8px}.feedback-actions .button{text-align:center;margin:0}.feedback .simulation{border-top:1px solid var(--line);padding-top:10px;margin:12px 0 0;font-size:10px;color:var(--muted);text-align:center}.pulse{display:inline-block;width:6px;height:6px;background:var(--green);border-radius:50%;margin-right:6px;animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.3;transform:scale(.65)}}
+    footer{text-align:center;padding:15px 24px 26px;font-size:11px;color:var(--muted)}footer p{margin:0 0 8px}.status{min-height:17px}
+    @media(max-width:1100px){.stage{display:flex;flex-direction:column;gap:20px;padding-top:14px}.book{max-width:540px;order:0}.feedback-slot{order:1;max-width:320px;max-height:0;overflow:hidden;transition:max-height .55s ease}.feedback-slot.has-card{max-height:320px}.feedback{transform-origin:center top}.settings{order:2;max-width:540px;padding:19px 22px}.settings h1{margin-bottom:12px}.examples{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.examples p{grid-column:1/-1}.hint{margin-top:10px}.options{display:flex;flex-wrap:wrap;gap:10px 18px}.check-row{margin:0}header{padding-top:20px}.quran{font-size:34px}}
+    @media(max-width:560px){header{padding:22px 60px 8px 20px;text-align:left;justify-content:flex-start}.stage{padding-inline:12px}.book{padding:18px 18px 14px}.chapter{font-size:26px;margin-bottom:16px}.quran{font-size:clamp(25px,6.2vw,32px);line-height:2.15}.page{margin-top:15px}.settings{padding:17px}.options{display:block}.check-row{margin-bottom:10px}.examples{grid-template-columns:1fr}.feedback .arabic{font-size:32px}}
+    @media(prefers-reduced-motion:reduce){*,*:before{animation:none!important;transition:none!important}.feedback{transform:none}}
+  </style>
+</head>
+<body>
+  <header><p>Visual mock only · <a href="../test.html">Open working Teacher mode in the Quran app</a></p><span class="version" aria-label="Application design preview version 54">V54</span></header>
+  <main class="stage">
+    <aside class="settings" aria-label="Teacher settings preview">
+      <h1>Teacher</h1>
+      <label class="switch-row" for="teacher">Teacher mode <input id="teacher" class="switch" type="checkbox" role="switch"></label>
+      <div id="options" class="options" hidden>
+        <label class="check-row"><input id="help" type="checkbox" checked>Help after a 5-second pause</label>
+        <label class="check-row"><input id="corrections" type="checkbox" checked>Corrections after a pause</label>
+      </div>
+      <p id="setting-hint" class="hint">Turn it on to explore the proposed feedback.</p>
+      <div class="examples">
+        <p>Try a simulated situation</p>
+        <button id="pause" class="button" disabled>Forgot the next word</button>
+        <button id="wrong" class="button" disabled>Needs a correction</button>
+      </div>
+    </aside>
+    <section class="book" aria-label="Al-Fatihah excerpt">
+      <h2 class="chapter" lang="ar" dir="rtl">سُورَةُ الْفَاتِحَةِ</h2>
+      <div class="quran" lang="ar" dir="rtl">
+        <p>بِسْمِ اللَّهِ الرَّحْمَٰنِ <span id="hint-word" class="target">الرَّحِيمِ</span><span class="ayah">﴿١﴾</span></p>
+        <p><span id="retry-word" class="target">الْحَمْدُ</span> لِلَّهِ رَبِّ الْعَالَمِينَ<span class="ayah">﴿٢﴾</span></p>
+        <p>الرَّحْمَٰنِ الرَّحِيمِ<span class="ayah">﴿٣﴾</span></p>
+        <p>مَالِكِ يَوْمِ الدِّينِ<span class="ayah">﴿٤﴾</span></p>
+        <p>إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ<span class="ayah">﴿٥﴾</span></p>
+        <p>اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ<span class="ayah">﴿٦﴾</span></p>
+        <p>صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ</p>
+        <p>غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ<span class="ayah">﴿٧﴾</span></p>
+      </div>
+      <div class="page" lang="ar">١</div>
+      <p class="book-caption">The Quran page stays centered.</p>
+    </section>
+    <aside id="feedback-slot" class="feedback-slot" aria-label="Teacher feedback preview">
+      <div id="feedback" class="feedback" aria-hidden="true" inert>
+        <p id="feedback-label" class="label">A little help</p>
+        <p id="feedback-word" class="arabic" lang="ar" dir="rtl">الرَّحِيمِ</p>
+        <p id="feedback-turn" class="turn" role="status"></p>
+        <div class="feedback-actions">
+          <button id="replay" class="button">Replay</button>
+          <button id="dismiss" class="button secondary">Dismiss</button>
+        </div>
+        <p class="simulation">Visual simulation · no audio</p>
+      </div>
+    </aside>
+  </main>
+  <footer>
+    <p id="status" class="status" role="status">Design only. This page does not use your microphone or play audio.</p>
+    <a href="TEACHER-MODE.md">Read the teacher-mode design notes</a>
+  </footer>
+  <script>
+    const $ = id => document.getElementById(id);
+    let transitionTimer = null;
+    let activeExample = null;
+    function dismissFeedback() {
+      clearTimeout(transitionTimer);
+      transitionTimer = null;
+      activeExample = null;
+      $('feedback').classList.remove('open');
+      $('feedback').setAttribute('aria-hidden', 'true');
+      $('feedback').inert = true;
+      $('feedback-slot').classList.remove('has-card');
+      $('hint-word').classList.remove('active');
+      $('retry-word').classList.remove('retry');
+    }
+    function simulateTurn() {
+      clearTimeout(transitionTimer);
+      $('feedback-turn').replaceChildren();
+      const dot = document.createElement('span');
+      dot.className = 'pulse';
+      dot.setAttribute('aria-hidden', 'true');
+      $('feedback-turn').append(dot, 'Listen · simulated');
+      $('replay').disabled = true;
+      transitionTimer = setTimeout(() => {
+        if (!$('teacher').checked || !activeExample) return;
+        $('feedback-turn').textContent = 'Your turn · try the word again';
+        $('replay').disabled = false;
+        $('status').textContent = 'In the real feature, listening resumes at the same position after feedback.';
+      }, 1600);
+    }
+    function showFeedback(kind) {
+      if (!$('teacher').checked) return;
+      if (kind === 'pause' && !$('help').checked || kind === 'wrong' && !$('corrections').checked) {
+        $('status').textContent = 'Enable this option above to preview it.';
+        return;
+      }
+      dismissFeedback();
+      activeExample = kind;
+      $('feedback-label').textContent = kind === 'pause' ? 'A little help' : 'Listen and try again';
+      $('feedback-word').textContent = kind === 'pause' ? 'الرَّحِيمِ' : 'الْحَمْدُ';
+      $(kind === 'pause' ? 'hint-word' : 'retry-word').classList.add(kind === 'pause' ? 'active' : 'retry');
+      $('feedback').inert = false;
+      $('feedback').setAttribute('aria-hidden', 'false');
+      $('feedback').classList.add('open');
+      $('feedback-slot').classList.add('has-card');
+      $('status').textContent = kind === 'pause' ? 'Simulated quiet pause: one hint, then wait for the learner.' : 'Simulated likely error: offer the correct word at a pause.';
+      simulateTurn();
+    }
+    $('teacher').addEventListener('change', () => {
+      const enabled = $('teacher').checked;
+      $('options').hidden = !enabled;
+      $('pause').disabled = !enabled;
+      $('wrong').disabled = !enabled;
+      $('setting-hint').textContent = enabled ? 'Help is offered once. Continued recitation cancels queued hints.' : 'Turn it on to explore the proposed feedback.';
+      $('status').textContent = enabled ? 'Teacher is enabled for this visual preview. Choose a situation.' : 'Design only. This page does not use your microphone or play audio.';
+      if (!enabled) dismissFeedback();
+    });
+    $('pause').addEventListener('click', () => showFeedback('pause'));
+    $('wrong').addEventListener('click', () => showFeedback('wrong'));
+    $('replay').addEventListener('click', simulateTurn);
+    $('dismiss').addEventListener('click', () => {
+      dismissFeedback();
+      $('pause').focus();
+      $('status').textContent = 'Feedback dismissed. The reading position stays unchanged.';
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && activeExample) $('dismiss').click();
+    });
+  </script>
+</body>
+</html>

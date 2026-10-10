@@ -2,6 +2,9 @@ import { alignSegment, normalize, locateTranscriptBoundary } from './alignment.j
 import { setupOffline, refreshOfflineStatus } from './offline.js';
 import { createDebugPanel } from './debug.js';
 import { createWordInfo, wordRules, referenceWords } from './word-info.js';
+import { createMaddMonitor } from './madd.js';
+import { captureRecognitionBoundary, locateRecognitionBoundary } from './recognition-boundary.js';
+import { createTeacherMode, teacherAudioReference } from './teacher-mode.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
@@ -11,7 +14,14 @@ let segmentCarry = '';
 let alignmentAnchor = null;
 let pageBoundary = null;
 let reviewDetails = [], completedMatched = 0, completedReview = 0, completedPages = 0, firstPracticePage = 1;
-const wordInfo = createWordInfo(index => ({ word: words[index], state: states[index], detail: reviewDetails[index], hidden: memoryMode && !states[index] }));
+const maddEnabled = document.documentElement.dataset.maddTiming === 'experimental';
+const madd = createMaddMonitor(maddEnabled);
+const wordInfo = createWordInfo(index => {
+  const recoveryIndex = words.findIndex(word => word.accessible === reviewDetails[index]?.recoveryWord);
+  const recoveryElement = elements[recoveryIndex];
+  return { word: words[index], state: states[index], detail: reviewDetails[index], madd: madd.get(index), hidden: memoryMode && !states[index],
+    recoveryDisplay: recoveryElement ? { text: recoveryElement.textContent, font: getComputedStyle(recoveryElement).fontFamily } : null };
+});
 let worker, sessionId = 0, pendingChunks = 0, workerTimer;
 let media, context, source, capture, analyser, mute, animation, flushResolve;
 let finishResolve, startResolve, stopPromise, engineResolve;
@@ -55,6 +65,63 @@ let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
 let audioDiagnostic = {};
+let lastSpeechAt = 0, teacherGate = false, captureSequence = 0;
+const captureActions = new Map();
+function teacherWord(word) {
+  if (!word) return null;
+  const reference = teacherAudioReference(word);
+  if (!reference.combined) return word;
+  const verse = chapters.find(item => item.id === word.surah)?.verses.find(item => item.ayah === word.ayah);
+  const text = verse?.aya_text.trim().split(/\s+/u);
+  return { ...word, audioLabel: text?.slice(reference.split - 1, reference.split + 1).join(' ') || word.accessible };
+}
+const teacher = createTeacherMode({
+  getState: () => ({ phase, voiceSearch, page: currentPage, cursor, word: teacherWord(words[cursor]),
+    key: `${currentPage}:${words[cursor]?.surah}:${words[cursor]?.ayah}:${words[cursor]?.position}:${Boolean(words[cursor]?.bismillah)}`,
+    nextWords: words.slice(cursor, cursor + 3), speechAt: lastSpeechAt, advanceAt: lastAdvanceAt,
+    audioAt: audioDiagnostic.receivedAt, pendingChunks }),
+  pauseRecognition: pauseForTeacher,
+  resumeRecognition: resumeAfterTeacher,
+  onStateChange: controls,
+});
+
+function controlCapture(type) {
+  if (!capture) return Promise.reject(new Error('The microphone is unavailable.'));
+  return new Promise((resolve, reject) => {
+    const id = ++captureSequence;
+    const timer = setTimeout(() => { captureActions.delete(id); reject(new Error('The microphone could not pause safely for audio.')); }, 2000);
+    captureActions.set(id, error => { clearTimeout(timer); error ? reject(error) : resolve(); });
+    capture.port.postMessage({ type, id });
+  });
+}
+async function pauseForTeacher() {
+  if (phase !== 'recording' || voiceSearch || !worker || !capture) throw new DOMException('Recitation ended.', 'AbortError');
+  teacherGate = true;
+  wordInfo.hide();
+  await controlCapture('pause');
+  if (phase !== 'recording' || !worker) throw new DOMException('Recitation ended.', 'AbortError');
+  // New session IDs discard old queued ASR results. The start reply is a FIFO
+  // barrier: old inference has finished before the reference voice can play.
+  sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
+  alignmentAnchor = null; pageBoundary = null; lastTranscript = '';
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { startResolve = null; reject(new Error('The speech engine did not reset for Teacher mode.')); }, 15000);
+    startResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
+    worker.postMessage({ type: 'start', sessionId, maddTiming: maddEnabled });
+  });
+  debug.log('teacher-gate', { sessionId, page: currentPage, cursor });
+}
+async function resumeAfterTeacher() {
+  try {
+    if (phase === 'recording' && capture) {
+      await controlCapture('resume');
+      lastSpeechAt = Date.now(); lastAdvanceAt = Date.now();
+      debug.log('teacher-resume', { sessionId, page: currentPage, cursor });
+    }
+  } catch (error) {
+    if (phase === 'recording') void failEngine(error.message);
+  } finally { teacherGate = false; controls(); }
+}
 function debugWord(index) {
   const word = words[index];
   return word ? { index, surah: word.surah, ayah: word.ayah, word: word.position + 1,
@@ -64,7 +131,7 @@ function debugSnapshot() {
   const now = Date.now();
   return { phase, page: currentPage, sessionId, engineReady, cursor, segmentStart,
     totalWords: words.length, pendingChunks, estimatedQueuedAudioMs: pendingChunks * 320,
-    alignmentAnchor: alignmentAnchor ? { cursor: alignmentAnchor.cursor, offset: alignmentAnchor.offset } : null,
+    alignmentAnchor: alignmentAnchor ? { cursor: alignmentAnchor.cursor, offset: alignmentAnchor.offset, audio: alignmentAnchor.audio } : null,
     sinceRecognitionMs: lastRecognitionAt ? now - lastRecognitionAt : null,
     sinceAdvanceMs: lastAdvanceAt ? now - lastAdvanceAt : null,
     expected: debugWord(cursor), nearby: words.slice(Math.max(0, cursor - 2), cursor + 5).map((_, i) => debugWord(Math.max(0, cursor - 2) + i)),
@@ -103,7 +170,7 @@ function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
   $('voice-open').disabled = !chapter || locked();
   $('voice-close').disabled = voiceSearch && busy;
-  $('voice-record').disabled = busy;
+  $('voice-record').disabled = busy || (phase === 'idle' && teacher.busy);
   $('voice-record').textContent = phase === 'recording' ? 'Find verse' : busy ? 'Please wait…' : 'Start voice search';
   $('voice-record').classList.toggle('listening', voiceSearch && phase === 'recording');
   for (const id of ['search', 'search-go', 'surah']) $(id).disabled = locked() || !chapter;
@@ -118,7 +185,7 @@ function controls() {
   if (!searchLocked) hideSearchLockTip();
   $('previous-page').disabled = locked() || currentPage <= 1;
   $('next-page').disabled = locked() || currentPage >= 604;
-  $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase);
+  $('record').disabled = !chapter || ['loading', 'starting', 'stopping'].includes(phase) || (phase === 'idle' && teacher.busy);
   $('reset').disabled = ['loading', 'starting', 'stopping'].includes(phase);
   $('record').classList.toggle('recording', phase === 'recording');
   const recordLabel = ({ loading: 'Loading model…', starting: 'Opening microphone…', recording: 'Stop reciting', stopping: 'Finishing…' })[phase] || 'Start reciting';
@@ -126,6 +193,7 @@ function controls() {
   $('record').title = recordLabel;
   $('record').setAttribute('aria-pressed', String(phase === 'recording'));
   $('record').setAttribute('aria-busy', String(['loading', 'starting', 'stopping'].includes(phase)));
+  teacher.refresh();
 }
 
 function formatTime(seconds) { return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
@@ -156,6 +224,7 @@ function paint() {
     followWord();
   }
   lastFollowedAyah = currentPosition;
+  teacher.refresh();
 }
 
 function followWord(force = false) {
@@ -174,10 +243,15 @@ function followWord(force = false) {
 function appendWord(row, word, text) {
   const index = words.length; words.push(word);
   const button = document.createElement('button');
-  button.className = 'word'; button.textContent = text; button.type = 'button';
+  button.className = 'word';
+  // The book preview shares a Unicode Quran font with recognition details;
+  // the standard layouts retain their original Hafs display glyphs.
+  button.textContent = document.documentElement.dataset.layout === 'book' ? word.accessible : text;
+  button.type = 'button';
   wordInfo.bind(button, index);
   button.addEventListener('click', () => {
     if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
+    teacher.cancel({ reset: true });
     cursor = index; segmentStart = index; segmentCarry = '';
     alignmentAnchor = null;
     pageBoundary = null;
@@ -191,6 +265,7 @@ function appendWord(row, word, text) {
 }
 
 function renderPassage(continuing = false) {
+  teacher.cancel({ reset: !continuing, preserveCorrection: continuing });
   wordInfo.hide();
   $('ayahs').replaceChildren(); words = []; elements = [];
   $('ayahs').classList.toggle('opening-page', currentPage <= 2);
@@ -330,6 +405,8 @@ function fontLayoutReady() {
 document.fonts.ready.then(fontLayoutReady);
 document.fonts.addEventListener('loadingdone', fontLayoutReady);
 function resetSession() {
+  teacher.cancel({ reset: true });
+  madd.clear();
   pageBoundary = null;
   wordInfo.hide(); reviewDetails = []; completedMatched = 0; completedReview = 0; completedPages = 0; firstPracticePage = currentPage;
   alignmentAnchor = null;
@@ -406,7 +483,11 @@ function saveSession() {
 }
 
 function createWorker() {
-  worker = new Worker(new URL('../recognizer-worker.js', import.meta.url));
+  const workerUrl = new URL('../recognizer-worker.js', import.meta.url);
+  // Identify this loaded app, not a separately fetched server version. This
+  // also avoids reusing an HTTP-cached pre-timing worker on local reloads.
+  workerUrl.searchParams.set('app', document.querySelector('.app-version').textContent.trim());
+  worker = new Worker(workerUrl);
   worker.onerror = () => failEngine('The speech worker could not start. Reload the page using localhost or HTTPS.');
   worker.onmessage = ({ data }) => {
     if (data.type === 'progress') { status(data.message); $('download').value = data.value; return; }
@@ -435,7 +516,7 @@ function createWorker() {
           sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null });
       }
     }
-    if (data.type === 'result' && ['recording', 'stopping'].includes(phase)) {
+    if (data.type === 'result' && !teacherGate && ['recording', 'stopping'].includes(phase)) {
       if (voiceSearch) {
         if (data.final) voiceText = (voiceText + data.text).slice(-2000);
         $('voice-status').textContent = 'Listening. Recite a few distinctive words, then press Find verse.';
@@ -454,18 +535,33 @@ function handleRecognition(data) {
       const matchingBegan = performance.now();
       const heard = normalize(segmentCarry + data.text);
       const hadAnchor = alignmentAnchor !== null;
-      const boundary = alignmentAnchor?.cursor === cursor ? locateTranscriptBoundary(alignmentAnchor, heard) : null;
-      const pageOffset = pageBoundary ? locateTranscriptBoundary(pageBoundary, heard) : null;
+      const textBoundary = alignmentAnchor?.cursor === cursor ? locateTranscriptBoundary(alignmentAnchor, heard) : null;
+      const audioBoundary = textBoundary === null && alignmentAnchor?.cursor === cursor
+        ? locateRecognitionBoundary(alignmentAnchor.audio, data, segmentCarry) : null;
+      const boundary = textBoundary ?? audioBoundary;
+      const pageOffset = pageBoundary ? locateTranscriptBoundary(pageBoundary, heard)
+        ?? locateRecognitionBoundary(pageBoundary.audio, data, segmentCarry) : null;
       if (pageBoundary && pageOffset === null && boundary === null) {
         debug.log('page-boundary-revised', { page: currentPage, final: data.final });
         // Never search an earlier page's audio as if it belongs to the new page.
         if (data.final) { pageBoundary = null; alignmentAnchor = null; segmentStart = cursor; segmentCarry = ''; }
         return;
       }
+      if (hadAnchor && boundary === null) {
+        // Without either a text or audio boundary, replaying the old segment
+        // can trap tracking on a previously completed word. Await fresh audio.
+        debug.log('consumed-boundary-unavailable', { page: currentPage, final: data.final, expected: debugWord(cursor) });
+        if (data.final) { pageBoundary = null; alignmentAnchor = null; segmentStart = cursor; segmentCarry = ''; }
+        return;
+      }
       const inputOffset = boundary ?? pageOffset ?? 0;
       const inputStart = boundary === null ? segmentStart : cursor;
-      const match = alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final);
+      const recoveryEnabled = Date.now() - lastAdvanceAt >= 1800 && heard.length - inputOffset >= 8;
+      const match = alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final,
+        document.documentElement.dataset.vowelReview === 'experimental',
+        { settled: data.settled === true, recover: recoveryEnabled });
       const matchingMs = performance.now() - matchingBegan;
+      if (maddEnabled) madd.observe(data, words, match.diagnostic.alignments, inputOffset, segmentCarry, currentPage);
       // CTC can revise an earlier part of its cumulative hypothesis. Once a
       // word has advanced the visible cursor, that revision must not rewind
       // the reading position or erase completed highlights.
@@ -478,12 +574,17 @@ function handleRecognition(data) {
       }
       if (cursor > cursorBefore) {
         lastAdvanceAt = Date.now();
-        alignmentAnchor = { heard, offset: inputOffset + match.consumed, cursor };
+        alignmentAnchor = { heard, offset: inputOffset + match.consumed, cursor,
+          audio: captureRecognitionBoundary(data, inputOffset + match.consumed, segmentCarry) };
       }
+      if (caughtUp && phase === 'recording') teacher.observe(match.results.filter(result => result.index >= cursorBefore)
+        .map(result => ({ ...result, word: teacherWord(words[result.index]) })), currentPage);
       debug.log('recognition', {
         sessionId, final: data.final, transcript: lastTranscript, transcriptLength: data.text.length,
         normalizedTranscript: heard.slice(-6000), carryBefore, segmentBefore,
         inputStart, inputOffset, boundaryReused: boundary !== null,
+        boundarySource: textBoundary !== null ? 'text' : audioBoundary !== null ? 'token-time' : 'segment-start',
+        settled: data.settled === true, stableForMs: data.stableForMs, quietMs: data.quietMs, recoveryEnabled,
         anchorFallback: hadAnchor && boundary === null,
         cursorBefore, candidateCursor: match.cursor, cursorAfter: cursor,
         noRewindGuardHeld: !caughtUp, matchingMs, consumed: match.consumed,
@@ -498,11 +599,13 @@ function handleRecognition(data) {
         completedPages++;
         debug.log('auto-page-turn', { from: currentPage, to: currentPage === 604 ? 1 : currentPage + 1, nextOffset });
         currentPage = currentPage === 604 ? 1 : currentPage + 1;
+        teacher.continuePage(currentPage);
         renderPassage(true);
         // Keep the same audio stream and cumulative transcript. Reuse any
         // already-decoded words beyond this page immediately, even on a final result.
-        alignmentAnchor = { heard, offset: nextOffset, cursor: 0 };
-        pageBoundary = { heard, offset: nextOffset };
+        const audioBoundary = captureRecognitionBoundary(data, nextOffset, segmentCarry);
+        alignmentAnchor = { heard, offset: nextOffset, cursor: 0, audio: audioBoundary };
+        pageBoundary = { heard, offset: nextOffset, audio: audioBoundary };
         status(`Listening · continued to page ${currentPage}.`);
         continue;
       }
@@ -531,6 +634,9 @@ function loadEngine(file) {
 }
 
 async function releaseAudio() {
+  teacher.cancel();
+  for (const resolve of captureActions.values()) resolve(new DOMException('Microphone closed.', 'AbortError'));
+  captureActions.clear();
   cancelAnimationFrame(animation);
   media?.getTracks().forEach(track => track.stop()); media = null;
   if (capture) capture.port.onmessage = null;
@@ -541,6 +647,7 @@ async function releaseAudio() {
   $('record').style.removeProperty('--voice-glow');
 }
 async function failEngine(message) {
+  teacher.cancel(); teacherGate = false;
   const interrupted = phase === 'recording' || phase === 'stopping';
   debug.log('engine-error', { message, snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
@@ -559,14 +666,17 @@ async function failEngine(message) {
 function animateLevel() {
   if (!analyser) return;
   const samples = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(samples);
-  let peak = 0;
-  for (const value of samples) peak = Math.max(peak, Math.abs(value - 128) / 128);
+  let peak = 0, squares = 0;
+  for (const value of samples) { const amplitude = (value - 128) / 128; peak = Math.max(peak, Math.abs(amplitude)); squares += amplitude * amplitude; }
+  if (!teacher.playing && (Math.sqrt(squares / samples.length) >= .008 || peak >= .04)) lastSpeechAt = Date.now();
   $('record').style.setProperty('--voice-glow', `${5 + Math.min(15, peak * 60)}px`);
   animation = requestAnimationFrame(animateLevel);
 }
 
 async function startRecording(file) {
-  if (phase !== 'idle') return;
+  if (phase !== 'idle' || teacher.busy) return;
+  teacher.cancel({ reset: true }); teacherGate = false;
+  if (!voiceSearch) teacher.unlock();
   hideMicNotice();
   debug.log('start-request', { page: currentPage, cursor, engineReady });
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
@@ -596,16 +706,17 @@ async function startRecording(file) {
     sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
     pageBoundary = null;
     alignmentAnchor = null;
-    lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
+    lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastSpeechAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
     debug.log('session-start', { sessionId, expected: debugWord(cursor), micSettings });
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => { startResolve = null; reject(new Error('The speech engine did not start. Please retry.')); }, 15000);
       startResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
-      worker.postMessage({ type: 'start', sessionId });
+      worker.postMessage({ type: 'start', sessionId, maddTiming: maddEnabled && !voiceSearch });
     });
     capture.port.onmessage = ({ data }) => {
+      if (data.controlled) { captureActions.get(data.id)?.(); captureActions.delete(data.id); return; }
       if (data.flushed) { flushResolve?.(); flushResolve = null; return; }
-      if (!data.samples || !worker || !['recording', 'stopping'].includes(phase)) return;
+      if (teacherGate || !data.samples || !worker || !['recording', 'stopping'].includes(phase)) return;
       pendingChunks++;
       if (pendingChunks > 30) { failEngine('This device is processing audio too slowly. Close other tabs, then try a shorter passage.'); return; }
       worker.postMessage({ type: 'audio', samples: data.samples, sessionId }, [data.samples.buffer]);
@@ -629,6 +740,7 @@ async function stopRecording(reason = '') {
   if (phase !== 'recording') return;
   debug.log('stop-request', { reason: reason || 'user', snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
+  teacher.cancel();
   if (!voiceSearch) { elapsed += (Date.now() - startedAt) / 1000; startedAt = 0; }
   stopPromise = (async () => {
     try {
@@ -697,6 +809,7 @@ function openVoiceResult(result) {
 }
 $('voice-open').addEventListener('click', () => {
   if (locked()) return;
+  teacher.cancel();
   voiceSearch = true; voiceText = ''; lastTranscript = ''; $('voice-results').replaceChildren();
   $('voice-dialog').showModal(); controls();
   status('Recite a few words from anywhere in the Quran. We will find the passage on this device.');

@@ -1,10 +1,14 @@
 /* Book preview only. All application behavior lives in the shared app. */
+@font-face{font-family:BookQuran;src:url('../data/AmiriQuran-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+/* Use one bundled Unicode font for the Quran and recognized Arabic alike. */
+.book-view .word,.book-view .bismillah-line .word,.book-view [lang=ar],.book-view .ayah-number{font-family:BookQuran,serif}
+.book-view #word-info.is-review .word-info-arabic{font-family:BookQuran,serif;font-size:20px;font-weight:400;line-height:1.8}
 body.book-view{background:#e9e6dd;min-height:100vh}
 body.book-view.dark{background:#0e1712}
 .book-view .header{height:0;padding:0;margin:0}
 .book-view .header .bismillah{display:none}
 .book-view .header .app-version{position:fixed;top:10px;right:10px;z-index:12;background:var(--paper)}
-.book-view main{max-width:1180px;padding:38px 24px 32px;margin-left:76px;margin-right:76px}
+.book-view main{max-width:1180px;padding:38px 24px 32px;margin:0 auto}
 .book-view .reader{margin:0 auto;padding:0 28px;border-radius:3px;box-shadow:0 20px 65px #0002,inset 0 0 0 5px var(--paper),inset 0 0 0 6px var(--border);background:linear-gradient(90deg,#00000004,transparent 5%,transparent 95%,#00000005),var(--paper)}
 .book-view .surah-heading{padding:12px 0}
 .book-view .reader-footer{font-size:10px;padding:13px 0}
@@ -26,7 +30,6 @@ body.book-view.dark{background:#0e1712}
 #book-settings .book-session strong{display:block;font-size:20px}
 #book-settings .session-inline{display:block;width:100%;max-width:none;margin-top:14px}
 @media(min-width:1000px){
-  .book-view.book-settings-open main{margin-left:436px;margin-right:24px}
   .book-view.book-settings-open .practice{left:372px}
 }
 .book-settings-heading{display:flex;justify-content:flex-end;align-items:center;margin-bottom:4px}
@@ -46,6 +49,29 @@ body.book-view.dark{background:#0e1712}
 #book-settings .history{margin:12px 0;padding:12px}
 #book-settings footer{margin-top:16px}
 .book-standard-link{display:block;text-align:center;color:var(--green);font-size:12px;margin-top:18px}
+.book-view #word-info .word-info-madd{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}
+#book-settings #madd-report{width:100%;min-height:130px;box-sizing:border-box;font-size:11px}
+#book-settings .book-teacher{display:grid;gap:12px}
+#book-settings .book-teacher label{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.45;cursor:pointer}
+#book-settings .book-teacher input[type=checkbox]{width:16px;height:16px;margin:0;flex:none;accent-color:var(--green)}
+#book-settings .teacher-toggle{font-weight:600}
+#book-settings .teacher-options{display:grid;gap:10px;padding-left:25px}
+#book-settings #teacher-hear{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 12px;font-size:12px}
+#book-settings .book-teacher .hint{margin:0;line-height:1.55}
+#book-settings #teacher-status:empty{display:none}
+/* Feedback floats over the existing margin; it never resizes the Mushaf. */
+.book-view #teacher-feedback{position:fixed;z-index:14;left:50%;top:12px;translate:-50% 0;width:min(280px,calc(100vw - 28px));max-width:calc(100vw - 28px);box-sizing:border-box;padding:12px 15px 14px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--card) 94%,transparent);color:var(--ink);box-shadow:0 12px 38px #0002;backdrop-filter:blur(12px);opacity:1;scale:1;transform-origin:center;transition:scale 420ms cubic-bezier(.2,.7,.2,1),opacity 420ms ease,display 420ms allow-discrete}
+.book-view #teacher-feedback[data-placement=gutter]{top:50dvh;translate:0 -50%}
+.book-view #teacher-feedback[hidden]{display:none;opacity:0;scale:.85;pointer-events:none}
+.book-view #teacher-feedback:not(.is-visible){opacity:0;scale:.85;pointer-events:none}
+.book-view .teacher-feedback-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.book-view #teacher-feedback-label{font-size:11px;font-weight:600;color:var(--muted)}
+.book-view #teacher-dismiss{display:flex;align-items:center;justify-content:center;width:26px;height:26px;min-width:26px;min-height:26px;padding:0;border:0;font-size:23px;line-height:1;background:transparent;color:var(--muted)}
+.book-view #teacher-feedback-word{font-family:BookQuran,serif;font-size:28px;font-weight:400;line-height:1.8;margin:3px 0 6px;text-align:center;overflow-wrap:anywhere}
+.book-view #teacher-feedback-detail{font-size:12px;line-height:1.5;margin:0}
+.book-view #teacher-replay{display:block;margin:10px auto 0;padding:6px 12px;font-size:11px}
+@starting-style{.book-view #teacher-feedback:not([hidden]){opacity:0;scale:.85}}
+@media(prefers-reduced-motion:reduce){.book-view #teacher-feedback{transition:none}}
 /* Preview-only opening and closing motion. Discrete display/overlay
    transitions keep the closing surface visible until its shrink finishes. */
 @keyframes book-popup-in{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
@@ -80,3 +106,10 @@ body.book-view.dark{background:#0e1712}
   .book-view .session-inline{display:none}
   #book-settings{padding:20px}
 }
+/* The page stays centered. Details use its existing right margin, falling
+   back to a right-side overlay when that margin cannot hold readable text. */
+.book-view #word-info,.book-view #word-info.is-review{right:auto;top:50dvh;bottom:auto;translate:0 -50%;width:220px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 96px);padding:14px;transform-origin:center right;transition:scale 600ms cubic-bezier(.2,.7,.2,1),opacity 600ms ease,display 600ms allow-discrete;}
+@media(max-width:899px){
+ .book-view #word-info,.book-view #word-info.is-review{padding:10px}
+}
+@media(prefers-reduced-motion:reduce){.book-view #word-info{transition:none}}

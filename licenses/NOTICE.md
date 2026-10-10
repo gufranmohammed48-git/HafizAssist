@@ -53,3 +53,16 @@ Retrieved through the 21st.dev connector. The compact forty-bar waveform layout 
 ## Per-word Tajweed and phoneme reference
 
 `public/data/tajweed-words.json` is imported from the owner's Desktop-HafizAssist `phonemes-data.js` using `scripts/import-tajweed.mjs`. The source file describes itself as generated from `data/phonemes.json`. The original per-word IPA strings and letter/rule annotations are preserved for display; they do not replace the Zipformer alignment phonemes or assess the user's Tajweed. No additional upstream license is asserted by this import.
+
+Amiri Quran font (test.html)
+Source: https://github.com/google/fonts/tree/main/ofl/amiriquran
+Font: public/data/AmiriQuran-Regular.ttf
+License and copyright: AmiriQuran-OFL.txt (SIL Open Font License 1.1).
+
+## Teacher reference audio (V54, test.html)
+
+The book preview plays on-demand word recordings from the public Quran.com CDN (`https://audio.qurancdn.com/wbw/`). No recordings are bundled in this repository or mirrored to R2. Public word-audio paths are documented at https://api-docs.quran.com/docs/sdk/javascript/audio/ and https://api-docs.quran.foundation/docs/sdk/javascript/verses/#word-audio-paths . The source reader is labeled Quran.com word audio; this does not assert a verified reciter identity for every CDN clip.
+
+The optional device cache retains downloaded clips for at most six days of usable access, prunes expired entries on opening/use, and caps retained entries at 200. Replaying cached clips does not renew their saved timestamp. Direct media fallback does not populate this cache. Quran Foundation's developer terms and caching FAQ distinguish audio URL metadata from the recording rights; the Content Sync exception does not cover recording files. Source terms: https://api-docs.quran.com/legal/developer-terms/ and https://api-docs.quran.com/docs/tutorials/faq/#how-long-can-i-cache-or-store-qf-content . A permanent audio pack or recording mirror requires a separate source/rights decision.
+
+The four split-word audio mappings follow the existing Quran.com source positions described above. Both displayed halves play the complete original source word. Inserted chapter Bismillah uses Al-Fatihah 1:1 word positions 1–4. Reference playback is a learning aid, not recognition evidence or an authoritative pronunciation verdict.

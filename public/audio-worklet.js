@@ -6,7 +6,13 @@ class RecitationCapture extends AudioWorkletProcessor {
     this.phase = 0; this.sum = 0; this.weight = 0;
     this.buffer = new Float32Array(5120); this.length = 0; this.active = true;
     this.port.onmessage = ({ data }) => {
-      if (data === 'flush') {
+      if (data?.type === 'pause' || data?.type === 'resume') {
+        // Discard both buffered PCM and partial resampling state so no part
+        // of the reference voice can leak into the resumed learner segment.
+        this.active = data.type === 'resume';
+        this.length = 0; this.phase = 0; this.sum = 0; this.weight = 0;
+        this.port.postMessage({ controlled: data.type, id: data.id });
+      } else if (data === 'flush') {
         this.active = false;
         if (this.length) { const tail = this.buffer.slice(0, this.length); this.port.postMessage({ samples: tail }, [tail.buffer]); }
         this.port.postMessage({ flushed: true });

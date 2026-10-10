@@ -17,10 +17,33 @@ section('Go to a passage', document.querySelector('.search-surah-row'));
 document.querySelector('.practice-actions').insertBefore(document.getElementById('theme'), document.querySelector('.font-controls'));
 document.getElementById('theme').title = 'Switch color theme';
 section('Practice & text size', document.querySelector('.practice-actions'));
+const teacher = document.createElement('div');
+teacher.className = 'book-teacher';
+teacher.innerHTML = `<label class="teacher-toggle"><input id="teacher-enabled" type="checkbox"><span>Enable teacher</span></label>
+<div class="teacher-options"><label><input id="teacher-hints" type="checkbox" checked><span>Help when I pause</span></label><label><input id="teacher-corrections" type="checkbox" checked><span>Read words marked for review</span></label></div>
+<button id="teacher-hear" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg><span>Hear this word</span></button>
+<p id="teacher-help" class="hint">Pause for 5 seconds to hear the next word. Words flagged for review are replayed after a pause. Reference audio downloads separately; recent saved clips can work offline.</p><p id="teacher-status" class="hint" role="status"></p>`;
+section('Teacher', teacher);
+const teacherFeedback = document.createElement('aside');
+teacherFeedback.id = 'teacher-feedback';
+teacherFeedback.hidden = true;
+teacherFeedback.setAttribute('aria-label', 'Teacher feedback');
+teacherFeedback.setAttribute('aria-live', 'polite');
+teacherFeedback.innerHTML = `<div class="teacher-feedback-heading"><span id="teacher-feedback-label"></span><button id="teacher-dismiss" type="button" class="icon-button" aria-label="Dismiss teacher feedback">×</button></div><p id="teacher-feedback-word" lang="ar" dir="rtl"></p><p id="teacher-feedback-detail"></p><button id="teacher-replay" type="button">Replay word</button>`;
+document.body.append(teacherFeedback);
 const session = document.createElement('div');
 session.className = 'book-session';
 session.append(document.querySelector('.recitation-counts'), document.querySelector('.session-inline'));
 section('This recitation', session);
+const vowelNote = document.createElement('p');
+vowelNote.className = 'hint';
+vowelNote.textContent = 'Experimental vowel check: flags recognized a/i/u changes for review while tracking continues. Word endings settle during a brief quiet pause. May miss mistakes or flag correct recitation.';
+session.append(vowelNote);
+if (document.documentElement.dataset.maddTiming === 'experimental') {
+  const maddLab = document.createElement('div');
+  maddLab.innerHTML = `<p class="hint" id="madd-status" role="status">Start reciting to collect madd timing evidence.</p><p class="hint">This first stage shows reference rules and timing evidence. It does not mark madd correct or incorrect. No audio is saved.</p><button id="madd-copy" type="button">Copy madd report</button><p id="madd-copy-status" class="hint" role="status"></p><textarea id="madd-report" aria-label="Madd timing report" readonly hidden></textarea>`;
+  section('Madd · experimental', maddLab);
+}
 settings.append(document.querySelector('.history'), document.querySelector('.privacy-note'), document.querySelector('main > footer'));
 const standard = document.createElement('a');
 standard.href = './index.html'; standard.textContent = 'Return to the standard view';
