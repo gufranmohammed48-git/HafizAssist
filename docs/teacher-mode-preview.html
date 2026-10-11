@@ -20,14 +20,14 @@
   </style>
 </head>
 <body>
-  <header><p>Visual mock only · <a href="../test.html">Open working Teacher mode in the Quran app</a></p><span class="version" aria-label="Application design preview version 54">V54</span></header>
+  <header><p>Visual mock only · <a href="../index.html">Open Teacher mode in the Quran app</a></p><span class="version" aria-label="Application design preview version 9">V9</span></header>
   <main class="stage">
     <aside class="settings" aria-label="Teacher settings preview">
       <h1>Teacher</h1>
       <label class="switch-row" for="teacher">Teacher mode <input id="teacher" class="switch" type="checkbox" role="switch"></label>
       <div id="options" class="options" hidden>
         <label class="check-row"><input id="help" type="checkbox" checked>Help after a 5-second pause</label>
-        <label class="check-row"><input id="corrections" type="checkbox" checked>Corrections after a pause</label>
+        <label class="check-row"><input id="corrections" type="checkbox" checked>Read flagged words immediately</label>
       </div>
       <p id="setting-hint" class="hint">Turn it on to explore the proposed feedback.</p>
       <div class="examples">
@@ -113,7 +113,7 @@
       $('feedback').setAttribute('aria-hidden', 'false');
       $('feedback').classList.add('open');
       $('feedback-slot').classList.add('has-card');
-      $('status').textContent = kind === 'pause' ? 'Simulated quiet pause: one hint, then wait for the learner.' : 'Simulated likely error: offer the correct word at a pause.';
+      $('status').textContent = kind === 'pause' ? 'Simulated quiet pause: one hint, then wait for the learner.' : 'Simulated flagged word: read its reference immediately.';
       simulateTurn();
     }
     $('teacher').addEventListener('change', () => {

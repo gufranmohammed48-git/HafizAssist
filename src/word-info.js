@@ -34,7 +34,7 @@ export function referenceWords(verse, entries) {
 
 
 export function createWordInfo(getInfo) {
-  const sidePanel = document.documentElement.dataset.layout === 'book';
+  const bookLayout = document.body.classList.contains('book-view');
   const tip = document.createElement('div');
   tip.id = 'word-info'; tip.setAttribute('role', 'dialog');
   tip.setAttribute('aria-modal', 'false'); tip.setAttribute('aria-labelledby', 'word-info-title');
@@ -44,7 +44,6 @@ export function createWordInfo(getInfo) {
     clearTimeout(closeTimer);
     active?.setAttribute('aria-expanded', 'false');
     active = null; tip.hidden = true;
-    if (sidePanel) document.body.classList.remove('word-panel-open');
   }
   function closeAndReturn() {
     const button = active;
@@ -58,24 +57,24 @@ export function createWordInfo(getInfo) {
     closeTimer = setTimeout(() => {
       if (!tip.matches(':hover') && !active?.matches(':hover') &&
           !tip.contains(document.activeElement) && document.activeElement !== active) hide();
-    }, sidePanel ? 700 : 220);
+    }, 220);
   }
   function position() {
     if (!active || tip.hidden) return;
-    if (sidePanel) {
-      const page = document.querySelector('.reader').getBoundingClientRect();
-      const viewport = document.documentElement.clientWidth;
-      const gap = viewport < 600 ? 8 : 16;
-      const available = Math.max(0, viewport - page.right - gap - 12);
-      const fitsMargin = available >= 200;
-      const width = fitsMargin ? Math.min(340, available) : Math.min(280, viewport - 24);
-      // Center within the actual free margin, not a fixed viewport corner.
-      tip.style.width = `${width}px`;
-      tip.style.left = `${fitsMargin ? page.right + gap + (available - width) / 2 : viewport - width - 12}px`;
-      tip.style.removeProperty('top');
+    const rect = active.getBoundingClientRect();
+    if (bookLayout) {
+      // Anchor details beside their word; tall content scrolls within the
+      // available space instead of becoming a fixed panel in the page margin.
+      tip.style.removeProperty('max-height');
+      const above = Math.max(0, rect.top - 16);
+      const below = Math.max(0, innerHeight - rect.bottom - 16);
+      const placeAbove = above >= tip.offsetHeight || (below < tip.offsetHeight && above > below);
+      const space = placeAbove ? above : below;
+      tip.style.maxHeight = `${Math.max(48, Math.min(innerHeight - 16, space))}px`;
+      tip.style.left = Math.max(8, Math.min(innerWidth - tip.offsetWidth - 8, rect.left + rect.width / 2 - tip.offsetWidth / 2)) + 'px';
+      tip.style.top = Math.max(8, Math.min(innerHeight - tip.offsetHeight - 8, placeAbove ? rect.top - tip.offsetHeight - 8 : rect.bottom + 8)) + 'px';
       return;
     }
-    const rect = active.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(innerWidth - tip.offsetWidth - 8, rect.left)) + 'px';
     tip.style.top = Math.max(8, rect.top >= tip.offsetHeight + 12 ? rect.top - tip.offsetHeight - 8 :
       Math.min(innerHeight - tip.offsetHeight - 8, rect.bottom + 8)) + 'px';
@@ -91,7 +90,7 @@ export function createWordInfo(getInfo) {
     const content = textElement('div', value);
     content.dir = 'auto';
     if (arabic) { content.lang = 'ar'; content.className = 'word-info-arabic'; }
-    if (sidePanel && display) {
+    if (bookLayout && display) {
       content.textContent = display.text;
       content.style.fontFamily = display.font;
       content.setAttribute('aria-label', value);
@@ -100,12 +99,12 @@ export function createWordInfo(getInfo) {
   }
   function referenceContent(word) {
     const content = document.createElement('div'); content.className = 'word-info-reference';
-    const reference = sidePanel && !word.reference?.rules?.length ? null : word.reference;
+    const reference = bookLayout && !word.reference?.rules?.length ? null : word.reference;
     const rules = reference ? reference.rules.map(r => r.name + ' → ' + r.letter)
       : (word.rules || []).map(r => r.en + ' · ' + r.ar + (r.beats ? ' · ' + r.beats + ' counts' : ''));
     if (rules.length) {
       const list = document.createElement('ul');
-      if (sidePanel && reference) {
+      if (bookLayout && reference) {
         reference.rules.forEach(rule => {
           const item = textElement('li', rule.name + ' → ');
           const letter = textElement('span', rule.letter);
@@ -125,7 +124,7 @@ export function createWordInfo(getInfo) {
       if (suppressFocus) return;
       clearTimeout(closeTimer);
       if (active === button && !tip.hidden) return;
-      if (sidePanel) active?.setAttribute('aria-expanded', 'false');
+      if (bookLayout) active?.setAttribute('aria-expanded', 'false');
       else hide();
       active = button; button.setAttribute('aria-expanded', 'true');
       tip.replaceChildren();
@@ -163,10 +162,10 @@ export function createWordInfo(getInfo) {
         }
         if (detail?.heard) {
           tip.append(field('Recognized sounds nearby', detail.heard, true));
-          if (!sidePanel) tip.append(textElement('p', 'This fragment may cover more than one word; it is not a confirmed transcription of what you said for this word.', 'word-info-note'));
+          if (!bookLayout) tip.append(textElement('p', 'This fragment may cover more than one word; it is not a confirmed transcription of what you said for this word.', 'word-info-note'));
         } else tip.append(field('Heard', 'No reliable sound fragment was isolated for this word.'));
         if (detail?.recoveryWord) tip.append(field('Tracking resumed at', detail.recoveryWord, true, recoveryDisplay));
-        if (!sidePanel) tip.append(textElement('p', 'Recognition can be wrong. This flag does not confirm a specific pronunciation or Tajweed mistake.', 'word-info-note'));
+        if (!bookLayout) tip.append(textElement('p', 'Recognition can be wrong. This flag does not confirm a specific pronunciation or Tajweed mistake.', 'word-info-note'));
         const details = document.createElement('details');
         details.append(textElement('summary', 'Tajweed rules'), referenceContent(word));
         details.addEventListener('toggle', position); tip.append(details);
@@ -187,18 +186,16 @@ export function createWordInfo(getInfo) {
           for (const { rule, occurrences } of grouped.values()) section.append(field(
             rule.en + (occurrences > 1 ? ` · ${occurrences} annotated locations` : ''), Number.isFinite(rule.beats)
               ? `Reference annotation: ${rule.beats} counts` : 'Count not supplied in reference'));
-          section.append(textElement('p', 'Reference counts reflect the supplied dataset; stopping and permitted reading choices are not assessed here.', 'word-info-note'));
           for (const timing of madd?.measurements || []) {
             section.append(field('Decoded vowel-token interval', `${timing.emissionIntervalMs} ms`));
           }
-          section.append(textElement('p', madd?.note || 'Read this word, then hover again to see available timing evidence.', 'word-info-note'));
+          if (madd?.note) section.append(textElement('p', madd.note, 'word-info-note'));
           tip.append(section);
         }
       }
-      if (!sidePanel) tip.style.left = '8px';
-      if (sidePanel) document.body.classList.add('word-panel-open');
+      tip.style.left = '8px';
       tip.hidden = false; position();
-      if (sidePanel) requestAnimationFrame(position);
+      if (bookLayout) requestAnimationFrame(position);
     }
     button.addEventListener('mouseenter', show);
     button.addEventListener('focus', show);
@@ -220,9 +217,9 @@ export function createWordInfo(getInfo) {
   document.addEventListener('pointerdown', event => {
     if (active && !active.contains(event.target) && !tip.contains(event.target)) hide();
   });
-  window.addEventListener('scroll', event => { if (!sidePanel && !tip.contains(event.target)) hide(); }, true);
-  window.addEventListener('resize', sidePanel ? position : hide);
-  if (sidePanel) {
+  window.addEventListener('scroll', event => { if (!tip.contains(event.target)) hide(); }, true);
+  window.addEventListener('resize', bookLayout ? position : hide);
+  if (bookLayout) {
     const layoutObserver = new ResizeObserver(() => requestAnimationFrame(position));
     layoutObserver.observe(document.querySelector('.reader'));
     layoutObserver.observe(document.querySelector('main'));

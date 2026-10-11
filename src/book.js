@@ -1,118 +1,160 @@
-// Preview-only layout. Move the existing controls so the shared app keeps all
-// its event handlers, state, model cache, and microphone behavior.
+// Move controls before loading the shared app; all layouts keep shared behavior.
 function setupBookLayout() {
-const settings = document.createElement('dialog');
-settings.id = 'book-settings';
-settings.setAttribute('aria-label', 'Search and reading settings');
-settings.innerHTML = `<div class="book-settings-heading"><button type="button" class="icon-button" id="book-close" aria-label="Close reading settings">×</button></div>`;
-document.body.append(settings);
-const section = (title, element) => {
-  const group = document.createElement('section');
-  const heading = document.createElement('h3');
-  heading.textContent = title;
-  group.append(heading, element);
-  settings.append(group);
-};
-section('Go to a passage', document.querySelector('.search-surah-row'));
-document.querySelector('.practice-actions').insertBefore(document.getElementById('theme'), document.querySelector('.font-controls'));
-document.getElementById('theme').title = 'Switch color theme';
-section('Practice & text size', document.querySelector('.practice-actions'));
-const teacher = document.createElement('div');
-teacher.className = 'book-teacher';
-teacher.innerHTML = `<label class="teacher-toggle"><input id="teacher-enabled" type="checkbox"><span>Enable teacher</span></label>
-<div class="teacher-options"><label><input id="teacher-hints" type="checkbox" checked><span>Help when I pause</span></label><label><input id="teacher-corrections" type="checkbox" checked><span>Read words marked for review</span></label></div>
-<button id="teacher-hear" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg><span>Hear this word</span></button>
-<p id="teacher-help" class="hint">Pause for 5 seconds to hear the next word. Words flagged for review are replayed after a pause. Reference audio downloads separately; recent saved clips can work offline.</p><p id="teacher-status" class="hint" role="status"></p>`;
-section('Teacher', teacher);
-const teacherFeedback = document.createElement('aside');
-teacherFeedback.id = 'teacher-feedback';
-teacherFeedback.hidden = true;
-teacherFeedback.setAttribute('aria-label', 'Teacher feedback');
-teacherFeedback.setAttribute('aria-live', 'polite');
-teacherFeedback.innerHTML = `<div class="teacher-feedback-heading"><span id="teacher-feedback-label"></span><button id="teacher-dismiss" type="button" class="icon-button" aria-label="Dismiss teacher feedback">×</button></div><p id="teacher-feedback-word" lang="ar" dir="rtl"></p><p id="teacher-feedback-detail"></p><button id="teacher-replay" type="button">Replay word</button>`;
-document.body.append(teacherFeedback);
-const session = document.createElement('div');
-session.className = 'book-session';
-session.append(document.querySelector('.recitation-counts'), document.querySelector('.session-inline'));
-section('This recitation', session);
-const vowelNote = document.createElement('p');
-vowelNote.className = 'hint';
-vowelNote.textContent = 'Experimental vowel check: flags recognized a/i/u changes for review while tracking continues. Word endings settle during a brief quiet pause. May miss mistakes or flag correct recitation.';
-session.append(vowelNote);
-if (document.documentElement.dataset.maddTiming === 'experimental') {
-  const maddLab = document.createElement('div');
-  maddLab.innerHTML = `<p class="hint" id="madd-status" role="status">Start reciting to collect madd timing evidence.</p><p class="hint">This first stage shows reference rules and timing evidence. It does not mark madd correct or incorrect. No audio is saved.</p><button id="madd-copy" type="button">Copy madd report</button><p id="madd-copy-status" class="hint" role="status"></p><textarea id="madd-report" aria-label="Madd timing report" readonly hidden></textarea>`;
-  section('Madd · experimental', maddLab);
-}
-settings.append(document.querySelector('.history'), document.querySelector('.privacy-note'), document.querySelector('main > footer'));
-const standard = document.createElement('a');
-standard.href = './index.html'; standard.textContent = 'Return to the standard view';
-standard.className = 'book-standard-link'; settings.append(standard);
-
-const menu = document.createElement('button');
-menu.id = 'book-menu'; menu.type = 'button'; menu.className = 'icon-button';
-menu.setAttribute('aria-label', 'Open search and reading settings');
-menu.setAttribute('aria-haspopup', 'dialog'); menu.setAttribute('aria-controls', settings.id);
-menu.title = 'Search & settings';
-menu.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--card)"/><circle cx="15" cy="12" r="2" fill="var(--card)"/><circle cx="9" cy="18" r="2" fill="var(--card)"/></svg>`;
-document.querySelector('.recorder-main').append(menu);
-menu.setAttribute('aria-expanded', 'false');
-menu.addEventListener('click', () => {
-  if (settings.open) { settings.close(); return; }
-  // On wide screens the panel shares the space with the page and microphone.
-  // Narrow screens use a modal drawer with native focus containment.
-  if (matchMedia('(min-width:1000px)').matches) settings.show();
-  else settings.showModal();
-  document.body.classList.add('book-settings-open');
-  menu.setAttribute('aria-expanded', 'true');
-  document.getElementById('book-close').focus();
-});
-settings.addEventListener('close', () => {
-  document.body.classList.remove('book-settings-open');
-  menu.setAttribute('aria-expanded', 'false');
-  if (settings.contains(document.activeElement)) menu.focus();
-});
-settings.addEventListener('keydown', event => {
-  if (event.key === 'Escape') { event.preventDefault(); settings.close(); }
-});
-document.getElementById('book-close').addEventListener('click', () => settings.close());
-settings.addEventListener('click', event => {
-  if (event.target !== settings) return;
-  const bounds = settings.getBoundingClientRect();
-  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) settings.close();
-});
-// Close before the shared handler opens the voice-search dialog.
-document.getElementById('voice-open').addEventListener('click', () => settings.close());
-// Use the existing close action so dismissing voice search also stops its mic
-// and restores practice state. If the engine is starting, finish that first.
-const voiceDialog = document.getElementById('voice-dialog');
-const voiceClose = document.getElementById('voice-close');
-let dismissVoicePending = false;
-voiceDialog.addEventListener('click', event => {
-  if (event.target !== voiceDialog) return;
-  const bounds = voiceDialog.getBoundingClientRect();
-  if (event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
-  dismissVoicePending = voiceClose.disabled;
-  if (!dismissVoicePending) voiceClose.click();
-});
-new MutationObserver(() => {
-  if (dismissVoicePending && !voiceClose.disabled && voiceDialog.open) {
-    dismissVoicePending = false;
-    voiceClose.click();
+  const settings = document.createElement('dialog');
+  settings.id = 'book-settings';
+  settings.setAttribute('aria-label', 'Search and reading settings');
+  settings.innerHTML = '<div class="book-settings-heading"><button type="button" class="icon-button" id="book-close" aria-label="Close reading settings">×</button></div>';
+  document.body.append(settings);
+  const section = (title, element) => {
+    const group = document.createElement('section');
+    const heading = document.createElement('h3');
+    heading.textContent = title; group.append(heading, element); settings.append(group);
+  };
+  section('Go to a passage', document.querySelector('.search-surah-row'));
+  const recorder = document.querySelector('.recorder-main');
+  const record = document.getElementById('record');
+  const visibility = document.getElementById('visibility');
+  const practiceActions = document.querySelector('.practice-actions');
+  practiceActions.insertBefore(document.getElementById('theme'), document.querySelector('.font-controls'));
+  document.getElementById('theme').title = 'Switch color theme';
+  section('Practice & text size', practiceActions);
+  // Keep audio status available to assistive technology without a settings block.
+  const teacherStatus = document.createElement('p');
+  teacherStatus.id = 'teacher-status'; teacherStatus.className = 'sr-only';
+  teacherStatus.setAttribute('role', 'status');
+  document.body.append(teacherStatus);
+  const teacherFeedback = document.createElement('aside');
+  teacherFeedback.id = 'teacher-feedback'; teacherFeedback.hidden = true;
+  teacherFeedback.setAttribute('popover', 'manual');
+  teacherFeedback.setAttribute('aria-label', 'Teacher feedback');
+  teacherFeedback.setAttribute('aria-live', 'polite');
+  teacherFeedback.innerHTML = '<div class="teacher-feedback-heading"><span id="teacher-feedback-label"></span><button id="teacher-dismiss" type="button" class="icon-button" aria-label="Dismiss teacher feedback">×</button></div><p id="teacher-feedback-word" lang="ar" dir="rtl"></p><p id="teacher-feedback-detail"></p><button id="teacher-replay" type="button">Replay word</button>';
+  document.body.append(teacherFeedback);
+  const session = document.createElement('div');
+  session.className = 'book-session';
+  session.append(document.querySelector('.recitation-counts'), document.querySelector('.session-inline'));
+  section('This recitation', session);
+  settings.append(document.querySelector('.history'), document.querySelector('.privacy-note'), document.querySelector('main > footer'));
+  const svg = paths => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  const control = (id, label, icon) => {
+    const button = document.createElement('button');
+    button.id = id; button.type = 'button'; button.className = 'icon-button book-control';
+    button.setAttribute('aria-label', label); button.title = label; button.innerHTML = icon;
+    return button;
+  };
+  // Original, simple teacher silhouette with a board and a raised pointer.
+  const teacherSymbol = off => `<svg class="teacher-symbol" width="32" height="32" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <rect x="31" y="5" width="29" height="28" rx="2.5" fill="var(--teacher-board)" stroke="var(--teacher-line)" stroke-width="2.5"/>
+    <path d="M45.5 33v8m-7 0h14" fill="none" stroke="var(--teacher-line)" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="16" cy="17" r="8.5" fill="var(--teacher-figure)"/>
+    <path d="M4 57V40c0-7 5-12 12-12s12 5 12 12v17Z" fill="var(--teacher-figure)"/>
+    <path d="m25 35 11-8" fill="none" stroke="var(--teacher-figure)" stroke-width="6" stroke-linecap="round"/>
+    <path d="m36 28 13-17" fill="none" stroke="var(--teacher-accent)" stroke-width="2.8" stroke-linecap="round"/>
+    ${off ? '<path d="M48 24h7" fill="none" stroke="var(--teacher-mark)" stroke-width="2.2" stroke-linecap="round"/>' : '<path d="m47 23 3 3 5-6" fill="none" stroke="var(--teacher-mark)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'}
+  </svg>`;
+  const teacherToggle = control('teacher-enabled', 'Turn Teacher on',
+    `<span id="teacher-icon-on" hidden>${teacherSymbol(false)}</span><span id="teacher-icon-off">${teacherSymbol(true)}</span>`);
+  teacherToggle.setAttribute('aria-pressed', 'false');
+  const teacherHelp = 'When Teacher is on, a five-second quiet pause plays the next word. If a word is flagged as a possible mistake, Teacher recites it correctly so you can listen and try again.';
+  teacherToggle.dataset.help = teacherHelp;
+  teacherToggle.removeAttribute('title'); // Use one styled tooltip, without a second native bubble.
+  const teacherTooltip = document.createElement('span');
+  teacherTooltip.id = 'teacher-tooltip'; teacherTooltip.className = 'book-teacher-tooltip';
+  teacherTooltip.setAttribute('role', 'tooltip'); teacherTooltip.textContent = teacherHelp;
+  teacherToggle.append(teacherTooltip);
+  teacherToggle.setAttribute('aria-describedby', teacherTooltip.id);
+  const searchButton = control('book-search', 'Find a verse by voice', svg('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>'));
+  const menu = control('book-menu', 'Open reading settings', svg('<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--card)"/><circle cx="15" cy="12" r="2" fill="var(--card)"/><circle cx="9" cy="18" r="2" fill="var(--card)"/>'));
+  for (const button of [searchButton, menu]) {
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-expanded', 'false');
   }
-}).observe(voiceClose, { attributes: true, attributeFilter: ['disabled'] });
-voiceDialog.addEventListener('close', () => { dismissVoicePending = false; });
-// Successful navigation closes the panel; invalid queries remain visible.
-const passageObserver = new MutationObserver(() => { if (settings.open) settings.close(); });
-passageObserver.observe(document.getElementById('ayahs'), { childList: true });
+  menu.setAttribute('aria-controls', settings.id);
+  searchButton.setAttribute('aria-controls', 'voice-dialog');
+  searchButton.disabled = true;
+  record.classList.add('book-control'); visibility.classList.add('book-control');
+  recorder.append(record, teacherToggle, visibility, searchButton, menu);
+  // Browser zoom, sidebars and font size all change the available gutter.
+  // Measure the centered page instead of assigning a desktop breakpoint.
+  const reader = document.querySelector('.reader');
+  let placementFrame;
+  function placeControls() {
+    const mobile = document.documentElement.dataset.layout === 'mobile';
+    const narrow = document.documentElement.clientWidth <= 600;
+    const hasGutter = reader.getBoundingClientRect().left >= 78;
+    document.body.classList.toggle('book-controls-top', mobile || narrow || !hasGutter);
+  }
+  function schedulePlacement() {
+    cancelAnimationFrame(placementFrame);
+    placementFrame = requestAnimationFrame(placeControls);
+  }
+  placeControls();
+  new ResizeObserver(schedulePlacement).observe(reader);
+  window.addEventListener('resize', schedulePlacement);
+  let settingsOpener = menu;
+  function openSettings(opener, target) {
+    settingsOpener = opener;
+    if (!settings.open) {
+      if (!document.body.classList.contains('book-controls-top')) settings.show();
+      else settings.showModal();
+      document.body.classList.add('book-settings-open');
+      menu.setAttribute('aria-expanded', 'true');
+    }
+    target.focus();
+  }
+  searchButton.addEventListener('click', () => {
+    const voiceOpen = document.getElementById('voice-open');
+    if (!voiceOpen.disabled) voiceOpen.click();
+  });
+  menu.addEventListener('click', () => {
+    if (settings.open) { settings.close(); return; }
+    openSettings(menu, document.getElementById('book-close'));
+  });
+  settings.addEventListener('close', () => {
+    document.body.classList.remove('book-settings-open');
+    menu.setAttribute('aria-expanded', 'false');
+    if (settings.contains(document.activeElement)) settingsOpener.focus();
+  });
+  settings.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); settings.close(); }
+  });
+  document.getElementById('book-close').addEventListener('click', () => settings.close());
+  settings.addEventListener('click', event => {
+    if (event.target !== settings) return;
+    const bounds = settings.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) settings.close();
+  });
+  // Close before the shared handler opens voice search.
+  document.getElementById('voice-open').addEventListener('click', () => settings.close());
+  const voiceDialog = document.getElementById('voice-dialog');
+  const voiceClose = document.getElementById('voice-close');
+  let dismissVoicePending = false;
+  voiceDialog.addEventListener('click', event => {
+    if (event.target !== voiceDialog) return;
+    const bounds = voiceDialog.getBoundingClientRect();
+    if (event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
+    dismissVoicePending = voiceClose.disabled;
+    if (!dismissVoicePending) voiceClose.click();
+  });
+  new MutationObserver(() => {
+    if (dismissVoicePending && !voiceClose.disabled && voiceDialog.open) {
+      dismissVoicePending = false; voiceClose.click();
+    }
+  }).observe(voiceClose, { attributes: true, attributeFilter: ['disabled'] });
+  voiceDialog.addEventListener('close', () => { dismissVoicePending = false; searchButton.setAttribute('aria-expanded', 'false'); });
+  new MutationObserver(() => searchButton.setAttribute('aria-expanded', String(voiceDialog.open)))
+    .observe(voiceDialog, { attributes: true, attributeFilter: ['open'] });
+  // Successful navigation closes the panel; invalid queries remain visible.
+  const passageObserver = new MutationObserver(() => { if (settings.open) settings.close(); });
+  passageObserver.observe(document.getElementById('ayahs'), { childList: true });
 }
 
-// Keep layout errors separate from loading the Quran, and surface module-load
-// errors that would otherwise leave the original loading message forever.
+// Surface module-load errors instead of leaving the original loading message.
 (() => {
   const passage = document.getElementById('ayahs');
   if (location.protocol === 'file:') {
-    passage.textContent = 'Open this page through your local server: http://localhost:5173/test.html. Opening the HTML file directly cannot load the Quran app.';
+    const page = location.pathname.split('/').pop() || 'index.html';
+    passage.textContent = `Open this page through your local server: http://localhost:5173/${page}. Opening the HTML file directly cannot load the Quran app.`;
     return;
   }
   try { setupBookLayout(); }
@@ -130,3 +172,6 @@ passageObserver.observe(document.getElementById('ayahs'), { childList: true });
     console.error('Quran app startup failed:', error);
   });
 })();
+
+
+

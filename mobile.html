@@ -1,17 +1,19 @@
 <!doctype html>
-<html lang="en" data-layout="mobile">
+<html lang="en" data-layout="mobile" data-vowel-review="experimental" data-madd-timing="experimental">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#174f42"><meta name="description" content="Practice Quran memorization with private, offline recitation tracking and a full Mushaf.">
   <title>Recite Al Quran · Quran Recitation Tracker</title>
   <script src="./src/entry.js"></script>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/book.css">
+  <link rel="preload" href="./data/AmiriQuran-Regular.ttf" as="font" type="font/ttf" crossorigin>
 </head>
-<body>
+<body class="book-view">
   <header class="header">
     <img class="bismillah" src="./assets/bismillah.png" alt="Bismillah ir-Rahman ir-Raheem">
     <button class="icon-button" id="theme" aria-label="Switch color theme">◐</button>
-    <span class="app-version" aria-label="Application version 54" title="Loaded application version">V54</span>
+    <span class="app-version" aria-label="Application version 9" title="Loaded application version">V9</span>
   </header>
   <main>
     <section class="card practice" aria-label="Practice and navigation">
@@ -56,7 +58,7 @@
       <div class="surah-heading">
         <h2 lang="ar" dir="rtl" id="surah-ar">الفاتحة</h2>
         <nav class="page-navigation" aria-label="Mushaf pages"><button id="next-page" class="icon-button" aria-label="Next page" title="Next page" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg></button><span id="page-label">Page 1</span><button id="previous-page" class="icon-button" aria-label="Previous page" title="Previous page" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></nav>
-        <p id="surah-title">Preparing Quran text</p>
+        <p id="surah-title" lang="ar" dir="rtl">الجزء الأول</p>
         
       </div>
       <div class="ayahs mushaf" id="ayahs" aria-label="Quran passage"><p class="loading">Loading your passage…</p></div>
@@ -87,7 +89,7 @@
     <div role="status" aria-live="polite" aria-atomic="true"><strong>Microphone off</strong><p id="mic-notice-message"></p></div>
     <button id="mic-notice-close" class="icon-button" type="button" aria-label="Dismiss microphone notification">×</button>
   </div>
-  <script type="module" src="./src/app.js"></script>
+  <script src="./src/book.js"></script>
 </body>
 </html>
 

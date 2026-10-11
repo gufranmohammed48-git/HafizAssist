@@ -21,24 +21,24 @@ export function teacherAudioReference(word) {
 
 export function createTeacherMode({ getState, pauseRecognition, resumeRecognition, onStateChange }) {
   const $ = id => document.getElementById(id);
-  if (!$('teacher-enabled')) return { refresh() {}, observe() {}, cancel() {}, unlock() {}, continuePage() {}, playing: false, busy: false };
+  if (!$('teacher-enabled')) return { refresh() {}, observe() {}, cancel() {}, unlock() {}, continuePage() {}, hearWord() {}, enabled: false, playing: false, busy: false };
   const card = $('teacher-feedback');
-  let enabled = false, hints = true, corrections = true;
+  let enabled = false;
   let audioContext, mediaAudio, silentUrl, source, activeJob, correction;
+  let manualSequence = 0, pendingManual;
   let dismissTimer, closeTimer, cardFrame, lastKey = '', warmKey = '', warmController;
-  let feedbackWord;
+  let feedbackWords = [];
+  let enabledAt = Date.now();
   const hinted = new Set(), corrected = new Set();
+  const failedPrompts = new Map();
   try {
     const saved = JSON.parse(localStorage.getItem('recitealquran-teacher') || '{}');
-    enabled = saved.enabled === true; hints = saved.hints !== false; corrections = saved.corrections !== false;
+    enabled = saved.enabled === true;
   } catch {}
-  $('teacher-enabled').checked = enabled;
-  $('teacher-hints').checked = hints;
-  $('teacher-corrections').checked = corrections;
   function save() {
-    try { localStorage.setItem('recitealquran-teacher', JSON.stringify({ enabled, hints, corrections })); } catch {}
+    try { localStorage.setItem('recitealquran-teacher', JSON.stringify({ enabled })); } catch {}
   }
-  function message(text) { $('teacher-status').textContent = text; }
+  function message(text) { if ($('teacher-status').textContent !== text) $('teacher-status').textContent = text; }
   function positionCard() {
     if (card.hidden) return;
     const page = document.querySelector('.reader')?.getBoundingClientRect();
@@ -55,17 +55,37 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     }
   }
   function hideCard() {
-    clearTimeout(dismissTimer); clearTimeout(closeTimer); cancelAnimationFrame(cardFrame);
+    clearTimeout(dismissTimer); cancelAnimationFrame(cardFrame);
+    if (card.hidden || (!card.classList.contains('is-visible') && closeTimer)) return;
+    clearTimeout(closeTimer);
     card.classList.remove('is-visible');
-    closeTimer = setTimeout(() => { card.hidden = true; }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 440);
+    closeTimer = setTimeout(() => {
+      if (card.hidePopover && card.matches(':popover-open')) card.hidePopover();
+      card.hidden = true; closeTimer = null;
+    }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 440);
   }
-  function showCard(label, word, detail, temporary = false) {
-    clearTimeout(dismissTimer); clearTimeout(closeTimer); cancelAnimationFrame(cardFrame);
+  function playbackWords(words) {
+    // Two displayed fragments can share one complete source-word recording.
+    // Fetch that recording once when warming upcoming words.
+    return words.filter((word, index) => word && (!index ||
+      teacherAudioReference(word).url !== teacherAudioReference(words[index - 1])?.url));
+  }
+  function showCard(label, words, detail, temporary = false, kind = 'reference') {
+    clearTimeout(dismissTimer); clearTimeout(closeTimer); closeTimer = null; cancelAnimationFrame(cardFrame);
     $('teacher-feedback-label').textContent = label;
-    $('teacher-feedback-word').textContent = word?.audioLabel || word?.accessible || '';
+    feedbackWords = Array.isArray(words) ? words : words ? [words] : [];
+    $('teacher-feedback-word').textContent = feedbackWords.map(word => word.audioLabel || word.accessible || '').join(' ');
     $('teacher-feedback-detail').textContent = detail;
-    feedbackWord = word;
+    card.dataset.state = kind;
+    $('teacher-replay').hidden = !feedbackWords.length;
+    $('teacher-replay').textContent = feedbackWords.length > 1 ? `Replay ${feedbackWords.length} words` : 'Replay word';
+    // A modal settings drawer is above normal document content. Popovers use
+    // the browser's top layer so the countdown/errors remain visible there.
+    const settings = $('book-settings');
+    const host = settings?.matches(':modal') ? settings : document.body;
+    if (card.parentElement !== host) host.append(card);
     card.hidden = false; positionCard();
+    if (card.showPopover && !card.matches(':popover-open')) card.showPopover();
     cardFrame = requestAnimationFrame(() => card.classList.add('is-visible'));
     if (temporary) dismissTimer = setTimeout(hideCard, 5000);
   }
@@ -86,6 +106,10 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
         view.setUint32(24, 8000, true); view.setUint32(28, 16000, true);
         view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, 'data'); view.setUint32(40, 2, true);
         silentUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+      }
+      // Retry the unlock on every direct user action, including after a
+      // browser blocked the first silent play. Never replace an active clip.
+      if (!activeJob?.playing) {
         mediaAudio.src = silentUrl;
         void mediaAudio.play().catch(() => {});
       }
@@ -141,7 +165,7 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     if (!reference) throw new Error('Choose a Quran word first.');
     try {
       const bytes = await fetchClip(reference.url, signal);
-      if (!audioContext) throw new Error('Enable Teacher mode or press Hear this word to allow audio.');
+      if (!audioContext) throw new Error('Click a word to allow audio playback.');
       const buffer = await audioContext.decodeAudioData(bytes);
       if (!buffer.duration || buffer.duration > 12) throw new Error('The reference clip could not be read.');
       return { buffer, reference };
@@ -169,14 +193,14 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       signal.addEventListener('abort', abort, { once: true });
       timer = setTimeout(() => {
         try { source?.stop(); } catch {}
-        mediaAudio?.pause(); finish(new Error('Teacher audio timed out. Press Hear this word to retry.'));
+        mediaAudio?.pause(); finish(new Error('Teacher audio timed out. Click the word to retry.'));
       }, 15000);
       if (clip.direct) {
-        if (!mediaAudio) { finish(new Error('Press Hear this word to allow audio playback.')); return; }
+        if (!mediaAudio) { finish(new Error('Click a word to allow audio playback.')); return; }
         mediaAudio.onended = () => finish();
         mediaAudio.onerror = () => finish(new Error('The reference recording could not load. Your microphone can continue.'));
         mediaAudio.src = clip.reference.url;
-        void mediaAudio.play().catch(() => finish(new Error('Audio was blocked. Press Hear this word to allow playback.')));
+        void mediaAudio.play().catch(() => finish(new Error('Audio was blocked. Click the word to allow playback.')));
       } else {
         try {
           source = audioContext.createBufferSource(); source.buffer = clip.buffer;
@@ -187,7 +211,7 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
   }
   function resumeAudio(signal) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => finish(new Error('Press Hear this word to allow audio playback.')), 3000);
+      const timer = setTimeout(() => finish(new Error('Click a word to allow audio playback.')), 3000);
       const abort = () => finish(abortError());
       function finish(error) {
         clearTimeout(timer); signal.removeEventListener('abort', abort);
@@ -195,72 +219,126 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       }
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) { abort(); return; }
-      audioContext.resume().then(() => finish(audioContext.state === 'running' ? null : new Error('Audio playback is paused. Press Hear this word.')), finish);
+      audioContext.resume().then(() => finish(audioContext.state === 'running' ? null : new Error('Audio playback is paused. Click a word to resume it.')), finish);
     });
   }
-  function cancel({ reset = false, hide = true, preserveCorrection = false } = {}) {
+  function cancel({ reset = false, hide = true, preserveCorrection = false, reason = '' } = {}) {
+    manualSequence++; pendingManual = null;
     activeJob?.controller.abort();
     warmController?.abort(); warmKey = '';
     if (!preserveCorrection) correction = null;
-    if (reset) { hinted.clear(); corrected.clear(); lastKey = ''; }
+    if (reset) { hinted.clear(); corrected.clear(); failedPrompts.clear(); lastKey = ''; }
     if (hide) hideCard();
+    if (reason) message(reason);
   }
   async function speak(word, kind, key) {
     if (activeJob || !word) return;
     const before = getState();
-    if (before.voiceSearch || !['idle', 'recording'].includes(before.phase)) return;
+    if (document.hidden || before.voiceSearch || !['idle', 'recording'].includes(before.phase)) return;
+    const promptWords = [word];
+    const label = kind === 'correction' ? 'Review this word' : kind === 'hint' ? 'A little help' :
+      promptWords.length > 1 ? 'Reference words' : 'Reference word';
     const job = { controller: new AbortController(), kind, playing: false, page: before.page,
       cursor: before.cursor, speechAt: before.speechAt, gated: false };
+    job.finished = new Promise(resolve => { job.finish = resolve; });
     activeJob = job; refresh(); onStateChange?.();
     const signal = job.controller.signal;
     message('Loading reference audio…');
-    showCard(kind === 'correction' ? 'Review this word' : kind === 'hint' ? 'A little help' : 'Reference word', word, 'Loading audio…');
+    showCard(label, promptWords, 'Loading audio…');
     try {
-      const clip = await prepare(word, signal);
-      if (!clip.direct) await resumeAudio(signal);
+      // Prepare the entire hint while listening, then pause capture once so
+      // none of the teacher's words or their echoes can advance the pointer.
+      const clips = [];
+      clips.push(...await Promise.all(promptWords.map(nextWord => prepare(nextWord, signal))));
+      if (clips.some(clip => !clip.direct)) await resumeAudio(signal);
       let now = getState();
-      if (signal.aborted || now.page !== before.page || now.cursor !== before.cursor || now.phase !== before.phase ||
-          (kind !== 'manual' && now.speechAt > before.speechAt)) throw abortError();
+      if (signal.aborted || document.hidden || now.voiceSearch || now.page !== before.page || now.phase !== before.phase ||
+          (kind === 'hint' && now.cursor !== before.cursor) ||
+          (kind === 'hint' && now.speechAt > before.speechAt)) throw abortError();
       if (before.phase === 'recording') {
         job.gated = true;
-        await pauseRecognition();
+        await pauseRecognition(signal);
         now = getState();
-        if (signal.aborted || now.phase !== 'recording' || (kind !== 'manual' && now.speechAt > before.speechAt)) throw abortError();
+        if (signal.aborted || document.hidden || now.voiceSearch || now.phase !== 'recording' || now.page !== before.page ||
+            (kind === 'hint' && now.cursor !== before.cursor) ||
+            (kind === 'hint' && now.speechAt > before.speechAt)) throw abortError();
       }
       job.playing = true;
-      showCard(kind === 'correction' ? 'Review this word' : kind === 'hint' ? 'A little help' : 'Reference word', word,
-        clip.reference.combined ? 'Playing the complete source word.' : 'Listen to the reference recording.');
+      showCard(label, promptWords, promptWords.length > 1 ? 'Listen to these words in order.' :
+        clips[0].reference.combined ? 'Playing the complete source word.' : 'Listen to the reference recording.');
       message('Playing reference audio…');
-      await playClip(clip, signal);
+      for (const clip of clips) {
+        if (signal.aborted) throw abortError();
+        await playClip(clip, signal);
+      }
       if (signal.aborted) throw abortError();
       if (kind === 'hint') hinted.add(key);
-      if (kind === 'correction') corrected.add(key);
-      showCard('Your turn', word, kind === 'correction' ? 'Continue when you’re ready. The flagged word remains available for review.' : 'Read the highlighted word when you’re ready.', true);
-      message(clip.direct ? 'Listening. This clip streamed online and was not saved offline.' : 'Ready. Downloaded word audio is kept on this device for up to six days.');
+      if (kind === 'correction') { corrected.add(key); if (correction?.key === key) correction = null; }
+      failedPrompts.delete(`${kind}:${key}`);
+      showCard('Your turn', promptWords, kind === 'correction' ? 'Continue from the highlighted word. The flagged word remains available for review.' :
+        kind === 'manual' ? 'Continue reciting when you’re ready.' :
+        promptWords.length > 1 ? 'Read these words, starting at the highlighted word.' : 'Read the highlighted word when you’re ready.', true);
+      message(clips.some(clip => clip.direct) ? 'Listening. Some audio streamed online and was not saved offline.' : 'Ready. Downloaded word audio is kept on this device for up to six days.');
     } catch (error) {
       if (error.name !== 'AbortError') {
-        // Do not retry failed automatic prompts in an endless loop.
-        if (kind === 'hint') hinted.add(key);
-        if (kind === 'correction') corrected.add(key);
-        showCard('Audio unavailable', word, error.message, true); message(error.message);
+        job.controller.abort();
+        // One bounded automatic retry; failure does not count as a played hint.
+        const failureKey = `${kind}:${key}`;
+        const count = (failedPrompts.get(failureKey)?.count || 0) + 1;
+        failedPrompts.set(failureKey, { count, nextAt: count < 2 ? Date.now() + 5000 : Infinity });
+        showCard('Audio unavailable', promptWords, error.message + ' Press Replay to try again.', false, 'error'); message(error.message);
+      } else if (enabled) {
+        message(kind === 'correction' ? 'Teacher on. The word remains queued for review.' :
+          'Teacher on. The prompt was cancelled; a new quiet pause can request it again.');
       }
     } finally {
       // Include cancellation and playback errors: a stopped speaker can still
       // leave a brief echo, which must not be counted as the learner's speech.
       if (job.gated && job.playing && getState().phase === 'recording') await new Promise(resolve => setTimeout(resolve, 400));
-      if (job.gated) await resumeRecognition().catch(() => {});
+      if (job.gated) await resumeRecognition({ played: job.playing }).catch(() => {});
       job.playing = false;
       if (activeJob === job) activeJob = null;
+      job.finish();
+      refresh(); onStateChange?.();
+      queueMicrotask(() => requestCorrection());
+    }
+  }
+  async function hearWord(word) {
+    if (!word) return;
+    const before = getState();
+    if (document.hidden || before.voiceSearch || !['idle', 'recording'].includes(before.phase)) return;
+    // Unlock in the click handler, then finish any previous capture gate
+    // before playing the latest requested word. There is never an audio queue.
+    unlock(true);
+    const request = { sequence: ++manualSequence, word, page: before.page, phase: before.phase };
+    pendingManual = request;
+    const previous = activeJob;
+    previous?.controller.abort();
+    refresh(); onStateChange?.();
+    try {
+      if (previous) await previous.finished;
+      const now = getState();
+      if (pendingManual !== request || request.sequence !== manualSequence || document.hidden ||
+          now.voiceSearch || now.page !== request.page || now.phase !== request.phase) return;
+      pendingManual = null;
+      await speak(request.word, 'manual');
+    } finally {
+      if (pendingManual === request) pendingManual = null;
       refresh(); onStateChange?.();
     }
   }
   function refresh() {
     const state = getState();
     const busy = !['idle', 'recording'].includes(state.phase) || state.voiceSearch;
-    $('teacher-hear').disabled = !state.word || busy || Boolean(activeJob);
-    $('teacher-replay').disabled = !feedbackWord || busy || Boolean(activeJob);
-    $('teacher-hints').disabled = !enabled;
-    $('teacher-corrections').disabled = !enabled;
+    $('teacher-replay').disabled = !feedbackWords.length || busy || Boolean(activeJob || pendingManual);
+    $('teacher-enabled').disabled = busy;
+    $('teacher-enabled').setAttribute('aria-pressed', String(enabled));
+    const label = enabled ? 'Teacher on. Click to turn off.' : 'Teacher off. Click to turn on.';
+    $('teacher-enabled').setAttribute('aria-label', label);
+    const help = busy ? 'Teacher mode is unavailable while audio is loading, starting, stopping, or searching.' : $('teacher-enabled').dataset.help;
+    $('teacher-tooltip').textContent = help;
+    $('teacher-icon-on').hidden = !enabled;
+    $('teacher-icon-off').hidden = enabled;
     if (state.key !== lastKey) {
       lastKey = state.key;
       if (!activeJob) hideCard();
@@ -271,7 +349,7 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       warmController?.abort(); warmController = new AbortController(); warmKey = state.key;
       const signal = warmController.signal;
       void (async () => {
-        for (const word of state.nextWords || []) {
+        for (const word of playbackWords(state.nextWords || [])) {
           if (signal.aborted) break;
           try { await fetchClip(teacherAudioReference(word).url, signal); } catch { if (signal.aborted) break; }
         }
@@ -279,41 +357,78 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     }
   }
   function observe(results, page) {
-    if (!enabled || !corrections) return;
+    if (!enabled) return;
     const latest = results.filter(result => result.state === 'review').at(-1);
     if (!latest?.word) return;
     const key = `${page}:${latest.word.surah}:${latest.word.ayah}:${latest.word.position}:${Boolean(latest.word.bismillah)}`;
-    if (!corrected.has(key)) correction = { key, word: latest.word, page, cursor: getState().cursor };
+    if (!corrected.has(key)) {
+      correction = { key, word: latest.word, page, cursor: getState().cursor };
+      if (activeJob?.kind === 'hint' && !activeJob.playing && !activeJob.controller.signal.aborted && !pendingManual)
+        cancel({ hide: false, preserveCorrection: true });
+      // Let the current recognition callback finish painting/turning pages
+      // before starting feedback. A detected review needs no quiet pause.
+      queueMicrotask(() => requestCorrection());
+    }
   }
   function continuePage(page) {
     // The final flagged word can still be heard after an automatic page turn.
     if (correction) { correction.page = page; correction.cursor = 0; }
   }
+  function retryReady(kind, key) {
+    const failure = failedPrompts.get(`${kind}:${key}`);
+    return !failure || Date.now() >= failure.nextAt;
+  }
+  function requestCorrection(state = getState()) {
+    if (!enabled || activeJob || pendingManual || state.phase !== 'recording' || state.voiceSearch || document.hidden) return false;
+    if (correction && (correction.page !== state.page || state.cursor - correction.cursor > 6)) correction = null;
+    if (!correction || !retryReady('correction', correction.key)) return false;
+    const next = correction;
+    void speak(next.word, 'correction', next.key);
+    return true;
+  }
   setInterval(() => {
     const state = getState();
     if (activeJob) {
-      if (!activeJob.gated && activeJob.kind !== 'manual' && state.speechAt > activeJob.speechAt) cancel();
+      if (!activeJob.controller.signal.aborted && !activeJob.gated && activeJob.kind === 'hint' && state.speechAt > activeJob.speechAt)
+        cancel({ preserveCorrection: true, reason: 'Teacher on. You continued reciting; waiting for another pause.' });
       return;
     }
-    if (!enabled || state.phase !== 'recording' || state.voiceSearch || !state.word || document.hidden) return;
-    // Recent PCM and an empty queue are required: a slow worker is not silence.
-    if (!state.audioAt || Date.now() - state.audioAt > 1000 || state.pendingChunks > 0) return;
-    const quietFor = Date.now() - Math.max(state.speechAt, state.advanceAt);
-    if (correction && corrections && quietFor >= 1200) {
-      const next = correction; correction = null;
-      if (next.page === state.page) void speak(next.word, 'correction', next.key);
-    } else if (hints && quietFor >= 5000 && !hinted.has(state.key)) void speak(state.word, 'hint', state.key);
+    if (!enabled || pendingManual || state.phase !== 'recording' || state.voiceSearch || document.hidden) return;
+    if (requestCorrection(state) || !state.word) return;
+    // A warm-up backlog can stay above the old hint-only queue limit while
+    // silence keeps arriving. Use the live microphone heartbeat; the same
+    // bounded pause/drain barrier used by corrections validates queued speech
+    // and the current word before any reference audio plays.
+    if (!state.captureAt || Date.now() - state.captureAt > 1500) {
+      message('Teacher on · Waiting for microphone audio.');
+      if (card.dataset.state === 'countdown') hideCard();
+      return;
+    }
+    // Late recognition can move the cursor during a real quiet pause. The
+    // post-drain cursor check already cancels stale hints; it must not also
+    // postpone every new hint for another five seconds.
+    const quietFor = Date.now() - Math.max(state.speechAt, enabledAt);
+    const canHint = !hinted.has(state.key) && retryReady('hint', state.key);
+    if (canHint && quietFor >= 5000) void speak(state.word, 'hint', state.key);
+    else if (canHint && quietFor >= 1000) {
+      const seconds = Math.max(1, Math.ceil((5000 - quietFor) / 1000));
+      const detail = `Next word in ${seconds} second${seconds === 1 ? '' : 's'}…`;
+      message(`Teacher on · ${detail}`);
+      if (card.hidden || card.dataset.state === 'countdown') showCard('Teacher on', null, detail, false, 'countdown');
+    } else {
+      if (card.dataset.state === 'countdown' && !card.hidden) hideCard();
+      if (card.dataset.state !== 'error') message(hinted.has(state.key)
+        ? 'Teacher on · Hint played. Click a word to hear it again.'
+        : 'Teacher on · Listening for your next pause.');
+    }
   }, 250);
-  $('teacher-enabled').addEventListener('change', () => {
-    enabled = $('teacher-enabled').checked;
-    if (enabled) { unlock(); message('Teacher on. Pause for five seconds for help, or press Hear this word.'); }
+  $('teacher-enabled').addEventListener('click', () => {
+    enabled = !enabled;
+    if (enabled) { enabledAt = Date.now(); hinted.clear(); corrected.clear(); failedPrompts.clear(); unlock(); message('Teacher on. Pause for five seconds to hear the next word. Words marked for review play immediately.'); }
     else { cancel(); message('Teacher off. Manual word replay is still available.'); }
     save(); refresh();
   });
-  $('teacher-hints').addEventListener('change', () => { hints = $('teacher-hints').checked; save(); if (!hints) cancel(); });
-  $('teacher-corrections').addEventListener('change', () => { corrections = $('teacher-corrections').checked; save(); if (!corrections) cancel(); });
-  $('teacher-hear').addEventListener('click', () => { unlock(true); void speak(getState().word, 'manual'); });
-  $('teacher-replay').addEventListener('click', () => { unlock(true); void speak(feedbackWord, 'manual'); });
+  $('teacher-replay').addEventListener('click', () => { void hearWord(feedbackWords[0]); });
   $('teacher-dismiss').addEventListener('click', () => cancel());
   window.addEventListener('resize', positionCard);
   window.addEventListener('scroll', positionCard, { passive: true });
@@ -323,6 +438,14 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     cancel(); mediaAudio?.pause(); void audioContext?.close().catch(() => {});
     if (silentUrl) URL.revokeObjectURL(silentUrl);
   });
-  message(enabled ? 'Teacher on. Press the microphone to begin, or Hear this word.' : 'Enable Teacher mode for spoken word hints and vowel review.');
-  return { refresh, observe, cancel, unlock, continuePage, get playing() { return activeJob?.playing === true; }, get busy() { return Boolean(activeJob); } };
+  $('book-settings').addEventListener('close', () => {
+    if (card.parentElement === document.body) return;
+    const visible = !card.hidden && card.classList.contains('is-visible');
+    document.body.append(card);
+    if (visible && card.showPopover && !card.matches(':popover-open')) card.showPopover();
+  });
+  refresh();
+  message(enabled ? 'Teacher on. Start reciting, or click a word to listen.' : 'Turn on Teacher for spoken hints and corrections. Click a word to listen.');
+  return { refresh, observe, cancel, unlock, continuePage, hearWord, get enabled() { return enabled; },
+    get playing() { return activeJob?.playing === true; }, get busy() { return Boolean(activeJob || pendingManual); } };
 }

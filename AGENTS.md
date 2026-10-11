@@ -2,7 +2,7 @@
 
 - Keep all changes local unless the user explicitly asks for a push or deployment.
 - For every delivered change batch, increment the visible version: V1, V2, V3, etc. This includes fixes and nonvisual changes, so the user can identify what they are testing.
-- The current version is V1. Read the actual current value in `index.html` before editing; that file, not this sentence, is authoritative. Never reuse or decrease a version.
+- Version numbering restarted at V1 at the user's explicit request on 2026-10-10. Read the actual current value in `index.html` before editing; that file, not this sentence, is authoritative. Continue with V2, V3, etc.; never reuse or decrease a version unless the user explicitly requests another restart.
 - Update the far-right header badge and its accessible label in `index.html`, and the matching `VERSION` constant in `public/sw.js`, in the same change batch. Keep the badge visible at the far right on desktop and mobile.
 - The badge must identify the loaded application. Do not replace it with a separately fetched latest-server version: that could falsely label cached code as current.
 - Keep the title, shared controls, and visible version in `mobile.html` synchronized with `index.html`. Preserve `data-layout="mobile"` on the mobile document. Opening-page uniform font fitting applies only to that layout.

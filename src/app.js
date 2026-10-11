@@ -5,9 +5,15 @@ import { createWordInfo, wordRules, referenceWords } from './word-info.js';
 import { createMaddMonitor } from './madd.js';
 import { captureRecognitionBoundary, locateRecognitionBoundary } from './recognition-boundary.js';
 import { createTeacherMode, teacherAudioReference } from './teacher-mode.js';
+import { createTeacherActivity } from './teacher-activity.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
+const juzNames = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر',
+  'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر', 'الخامس عشر', 'السادس عشر', 'السابع عشر', 'الثامن عشر', 'التاسع عشر', 'العشرون',
+  'الحادي والعشرون', 'الثاني والعشرون', 'الثالث والعشرون', 'الرابع والعشرون', 'الخامس والعشرون', 'السادس والعشرون',
+  'السابع والعشرون', 'الثامن والعشرون', 'التاسع والعشرون', 'الثلاثون'];
+const bookView = document.body.classList.contains('book-view');
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
@@ -65,7 +71,8 @@ let layouts = {}, currentPage = 1;
 const verseKey = verse => `${verse.surah}:${verse.ayah}`;
 let lastRecognitionAt = 0, lastAdvanceAt = 0, lastAudioLogAt = 0, lastTranscript = '', micSettings = {};
 let audioDiagnostic = {};
-let lastSpeechAt = 0, teacherGate = false, captureSequence = 0;
+const teacherActivity = createTeacherActivity();
+let teacherTranscript = '', teacherGate = false, teacherDraining = false, captureSequence = 0, teacherDrainResolve;
 const captureActions = new Map();
 function teacherWord(word) {
   if (!word) return null;
@@ -78,8 +85,8 @@ function teacherWord(word) {
 const teacher = createTeacherMode({
   getState: () => ({ phase, voiceSearch, page: currentPage, cursor, word: teacherWord(words[cursor]),
     key: `${currentPage}:${words[cursor]?.surah}:${words[cursor]?.ayah}:${words[cursor]?.position}:${Boolean(words[cursor]?.bismillah)}`,
-    nextWords: words.slice(cursor, cursor + 3), speechAt: lastSpeechAt, advanceAt: lastAdvanceAt,
-    audioAt: audioDiagnostic.receivedAt, pendingChunks }),
+    nextWords: words.slice(cursor, cursor + 3).map(teacherWord), speechAt: teacherActivity.speechAt, advanceAt: lastAdvanceAt,
+    audioAt: audioDiagnostic.receivedAt, captureAt: teacherActivity.captureAt, activity: teacherActivity.diagnostic, pendingChunks }),
   pauseRecognition: pauseForTeacher,
   resumeRecognition: resumeAfterTeacher,
   onStateChange: controls,
@@ -94,16 +101,29 @@ function controlCapture(type) {
     capture.port.postMessage({ type, id });
   });
 }
-async function pauseForTeacher() {
+function drainCapturedAudio() {
+  if (!pendingChunks) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { teacherDrainResolve = null; reject(new Error('Speech recognition is still catching up. Click a word to try again.')); }, 4000);
+    teacherDrainResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
+  });
+}
+async function pauseForTeacher(signal) {
   if (phase !== 'recording' || voiceSearch || !worker || !capture) throw new DOMException('Recitation ended.', 'AbortError');
   teacherGate = true;
+  teacherDraining = true;
   wordInfo.hide();
-  await controlCapture('pause');
-  if (phase !== 'recording' || !worker) throw new DOMException('Recitation ended.', 'AbortError');
+  try {
+    await controlCapture('pause');
+    // PCM submission is paused, but already queued learner results still
+    // count. Silence need not find an instant at which the queue is empty.
+    await drainCapturedAudio();
+  } finally { teacherDraining = false; }
+  if (signal?.aborted || phase !== 'recording' || !worker) throw new DOMException('Recitation ended.', 'AbortError');
   // New session IDs discard old queued ASR results. The start reply is a FIFO
   // barrier: old inference has finished before the reference voice can play.
   sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
-  alignmentAnchor = null; pageBoundary = null; lastTranscript = '';
+  alignmentAnchor = null; pageBoundary = null; lastTranscript = ''; teacherTranscript = '';
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => { startResolve = null; reject(new Error('The speech engine did not reset for Teacher mode.')); }, 15000);
     startResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
@@ -111,16 +131,18 @@ async function pauseForTeacher() {
   });
   debug.log('teacher-gate', { sessionId, page: currentPage, cursor });
 }
-async function resumeAfterTeacher() {
+async function resumeAfterTeacher({ played = false } = {}) {
   try {
     if (phase === 'recording' && capture) {
       await controlCapture('resume');
-      lastSpeechAt = Date.now(); lastAdvanceAt = Date.now();
+      // Only a spoken reference/echo needs a fresh pause clock. A cancelled
+      // stale prompt must not start another five-second wait in silence.
+      if (played) { teacherActivity.reset(Date.now(), { preserveNoise: true }); lastAdvanceAt = Date.now(); }
       debug.log('teacher-resume', { sessionId, page: currentPage, cursor });
     }
   } catch (error) {
     if (phase === 'recording') void failEngine(error.message);
-  } finally { teacherGate = false; controls(); }
+  } finally { teacherGate = false; teacherDraining = false; controls(); }
 }
 function debugWord(index) {
   const word = words[index];
@@ -169,6 +191,13 @@ document.addEventListener('pointerdown', event => {
 function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
   $('voice-open').disabled = !chapter || locked();
+  const voiceShortcut = $('book-search');
+  if (voiceShortcut) {
+    voiceShortcut.disabled = $('voice-open').disabled;
+    voiceShortcut.title = phase === 'recording' ? 'Stop the microphone before searching for a verse by voice.'
+      : voiceShortcut.disabled ? 'Voice search will be available when Quran loading and microphone setup have finished.'
+      : 'Find a verse by voice';
+  }
   $('voice-close').disabled = voiceSearch && busy;
   $('voice-record').disabled = busy || (phase === 'idle' && teacher.busy);
   $('voice-record').textContent = phase === 'recording' ? 'Find verse' : busy ? 'Please wait…' : 'Start voice search';
@@ -205,7 +234,8 @@ function paint() {
     const state = states[i] || '';
     const concealed = memoryMode && !state;
     elements[i].className = `word ${state} ${i === cursor ? 'next' : ''} ${concealed ? 'concealed' : ''}`;
-    elements[i].setAttribute('aria-label', concealed ? `Hidden word ${words[i].position + 1}, ayah ${words[i].ayah}. Select to resume here.` : `${words[i].accessible} — ${state === 'review' ? 'needs review' : state || 'upcoming'}. Select to resume here.`);
+    const action = bookView ? 'Click to hear this word.' : 'Select to resume here.';
+    elements[i].setAttribute('aria-label', concealed ? `Hidden word ${words[i].position + 1}, ayah ${words[i].ayah}. ${action}` : `${words[i].accessible} — ${state === 'review' ? 'needs review' : state || 'upcoming'}. ${action}`);
     if (state === 'matched') matched++;
     if (state === 'review') review++;
   }
@@ -244,12 +274,12 @@ function appendWord(row, word, text) {
   const index = words.length; words.push(word);
   const button = document.createElement('button');
   button.className = 'word';
-  // The book preview shares a Unicode Quran font with recognition details;
-  // the standard layouts retain their original Hafs display glyphs.
-  button.textContent = document.documentElement.dataset.layout === 'book' ? word.accessible : text;
+  // Reading pages share one Unicode Quran font with Arabic word details.
+  button.textContent = bookView ? word.accessible : text;
   button.type = 'button';
   wordInfo.bind(button, index);
   button.addEventListener('click', () => {
+    if (bookView) { teacher.hearWord(teacherWord(word)); return; }
     if (locked()) { status('Stop reciting before choosing a different starting word.'); return; }
     teacher.cancel({ reset: true });
     cursor = index; segmentStart = index; segmentCarry = '';
@@ -314,7 +344,9 @@ function renderPassage(continuing = false) {
   }
   const pageChapters = [...new Set(verses.map(v => v.surah))].map(id => chapters.find(c => c.id === id));
   $('surah-ar').textContent = pageChapters.map(c => c.ar).join(' · ');
-  $('surah-title').textContent = `Juz ${layouts[verseKey(verses[0])][0]} · Page ${currentPage} of 604`;
+  const juz = layouts[verseKey(verses[0])][0];
+  $('surah-title').textContent = `الجزء ${juzNames[juz - 1] || arabicNumber.format(juz)}`;
+  $('surah-title').setAttribute('aria-label', `Juz ${juz}`);
   $('passage-label').textContent = `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}`;
   if (continuing) {
     states = new Array(words.length); committed = [...states]; reviewDetails = [];
@@ -506,6 +538,7 @@ function createWorker() {
     if (data.type === 'started') { startResolve?.(); startResolve = null; }
     if (data.type === 'ack') {
       pendingChunks = Math.max(0, pendingChunks - 1);
+      if (!pendingChunks) { teacherDrainResolve?.(); teacherDrainResolve = null; }
       audioDiagnostic = { processMs: data.processMs, audioMs: data.audioMs, rms: data.rms, peak: data.peak,
         receivedAt: Date.now(), maxProcessMs: Math.max(audioDiagnostic.maxProcessMs || 0, data.processMs || 0),
         maxPendingChunks: Math.max(audioDiagnostic.maxPendingChunks || 0, pendingChunks) };
@@ -516,13 +549,20 @@ function createWorker() {
           sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null });
       }
     }
-    if (data.type === 'result' && !teacherGate && ['recording', 'stopping'].includes(phase)) {
+    if (data.type === 'result' && (!teacherGate || teacherDraining) && ['recording', 'stopping'].includes(phase)) {
       if (voiceSearch) {
         if (data.final) voiceText = (voiceText + data.text).slice(-2000);
         $('voice-status').textContent = 'Listening. Recite a few distinctive words, then press Find verse.';
         if (!data.final) lastTranscript = data.text;
         else lastTranscript = '';
-      } else handleRecognition(data);
+      } else {
+        const recognized = normalize(data.text);
+        const freshSounds = recognized.length > teacherTranscript.length && recognized.startsWith(teacherTranscript);
+        if (!teacherGate && !data.final && !data.settled && freshSounds && data.quietMs < 640)
+          teacherActivity.noteRecognition();
+        teacherTranscript = data.final ? '' : recognized;
+        handleRecognition(data);
+      }
     }
     if (data.type === 'finished') { finishResolve?.(); finishResolve = null; }
   };
@@ -635,6 +675,7 @@ function loadEngine(file) {
 
 async function releaseAudio() {
   teacher.cancel();
+  teacherDrainResolve?.(new DOMException('Microphone closed.', 'AbortError')); teacherDrainResolve = null;
   for (const resolve of captureActions.values()) resolve(new DOMException('Microphone closed.', 'AbortError'));
   captureActions.clear();
   cancelAnimationFrame(animation);
@@ -647,7 +688,7 @@ async function releaseAudio() {
   $('record').style.removeProperty('--voice-glow');
 }
 async function failEngine(message) {
-  teacher.cancel(); teacherGate = false;
+  teacher.cancel(); teacherGate = false; teacherDraining = false;
   const interrupted = phase === 'recording' || phase === 'stopping';
   debug.log('engine-error', { message, snapshot: debugSnapshot() });
   phase = 'stopping'; controls();
@@ -666,23 +707,24 @@ async function failEngine(message) {
 function animateLevel() {
   if (!analyser) return;
   const samples = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(samples);
-  let peak = 0, squares = 0;
-  for (const value of samples) { const amplitude = (value - 128) / 128; peak = Math.max(peak, Math.abs(amplitude)); squares += amplitude * amplitude; }
-  if (!teacher.playing && (Math.sqrt(squares / samples.length) >= .008 || peak >= .04)) lastSpeechAt = Date.now();
+  let peak = 0;
+  for (const value of samples) peak = Math.max(peak, Math.abs(value - 128) / 128);
+  // The analyser drives only the mic animation. Scheduling uses sustained
+  // floating-point PCM activity, not isolated peaks or byte-level noise.
   $('record').style.setProperty('--voice-glow', `${5 + Math.min(15, peak * 60)}px`);
   animation = requestAnimationFrame(animateLevel);
 }
 
 async function startRecording(file) {
   if (phase !== 'idle' || teacher.busy) return;
-  teacher.cancel({ reset: true }); teacherGate = false;
+  teacher.cancel({ reset: true }); teacherGate = false; teacherDraining = false;
   if (!voiceSearch) teacher.unlock();
   hideMicNotice();
   debug.log('start-request', { page: currentPage, cursor, engineReady });
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { status('This browser does not support microphone tracking. Use a recent Chrome, Edge, Firefox, or Safari on HTTPS.', true); return; }
   if (!voiceSearch && cursor >= words.length) resetSession();
   phase = 'starting'; controls(); status('Allow microphone access to begin.');
-  let micTimer;
+  let micTimer, calibrationTimer, calibrationResolve;
   try {
     context = new AudioContext();
     await context.resume();
@@ -706,17 +748,32 @@ async function startRecording(file) {
     sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
     pageBoundary = null;
     alignmentAnchor = null;
-    lastRecognitionAt = 0; lastTranscript = ''; lastAdvanceAt = Date.now(); lastSpeechAt = Date.now(); lastAudioLogAt = 0; audioDiagnostic = {};
+    lastRecognitionAt = 0; lastTranscript = ''; teacherTranscript = ''; lastAdvanceAt = Date.now(); teacherActivity.reset(); lastAudioLogAt = 0; audioDiagnostic = {};
     debug.log('session-start', { sessionId, expected: debugWord(cursor), micSettings });
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => { startResolve = null; reject(new Error('The speech engine did not start. Please retry.')); }, 15000);
       startResolve = error => { clearTimeout(timer); error ? reject(error) : resolve(); };
       worker.postMessage({ type: 'start', sessionId, maddTiming: maddEnabled && !voiceSearch });
     });
+    let calibrationReady;
+    if (!voiceSearch && teacher.enabled) {
+      status('Keep quiet for a moment while the microphone adjusts to background sound.');
+      calibrationReady = new Promise((resolve, reject) => {
+        calibrationResolve = resolve;
+        calibrationTimer = setTimeout(() => reject(new Error('The microphone is not providing audio. Start the microphone again.')), 6000);
+      });
+    }
     capture.port.onmessage = ({ data }) => {
       if (data.controlled) { captureActions.get(data.id)?.(); captureActions.delete(data.id); return; }
       if (data.flushed) { flushResolve?.(); flushResolve = null; return; }
+      if (calibrationResolve && phase === 'starting' && data.samples) {
+        // The mic is not red yet. Learn room noise from these startup frames
+        // without submitting them to recognition or changing practice counts.
+        if (teacherActivity.calibrate(data.samples)) { calibrationResolve(); calibrationResolve = null; }
+        return;
+      }
       if (teacherGate || !data.samples || !worker || !['recording', 'stopping'].includes(phase)) return;
+      if (!voiceSearch) teacherActivity.observe(data.samples);
       pendingChunks++;
       if (pendingChunks > 30) { failEngine('This device is processing audio too slowly. Close other tabs, then try a shorter passage.'); return; }
       worker.postMessage({ type: 'audio', samples: data.samples, sessionId }, [data.samples.buffer]);
@@ -725,6 +782,11 @@ async function startRecording(file) {
       if (phase === 'recording') void stopRecording('Your browser or device ended microphone access. Start the microphone again when you’re ready.');
     };
     source.connect(analyser); source.connect(capture); capture.connect(mute); mute.connect(context.destination);
+    if (calibrationReady) {
+      await calibrationReady;
+      clearTimeout(calibrationTimer);
+      teacherActivity.reset(Date.now(), { preserveNoise: true });
+    }
     phase = 'recording'; if (!voiceSearch) { startedAt = Date.now(); savedThisRun = false; } controls(); animateLevel();
     status(voiceSearch ? 'Recite any passage, then press Find verse.' : 'Listening. Recite the highlighted passage at your own pace.');
   } catch (error) {
@@ -732,6 +794,8 @@ async function startRecording(file) {
     await releaseAudio(); phase = 'idle'; controls();
     const messages = { NotAllowedError: 'Microphone access was denied. Allow it in your browser’s site settings, then try again.', NotFoundError: 'No microphone was found. Connect one, then try again.', NotReadableError: 'The microphone is busy or unavailable. Close other apps using it, then retry.' };
     status(messages[error.name] || error.message, true);
+  } finally {
+    clearTimeout(calibrationTimer); calibrationResolve = null;
   }
 }
 

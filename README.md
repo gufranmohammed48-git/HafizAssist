@@ -15,14 +15,16 @@ node scripts/serve.mjs
 Open **http://localhost:5173**. Do not open `index.html` directly: microphone capture, modules, and the speech worker require a local server or HTTPS.
 
 1. Use the single search field: `4` opens page 4, `s 2` opens chapter 2, `2:255` opens that verse, and `Yasin` or `يس` opens Ya-Sin. The adjacent dropdown lists each surah number with its English and Arabic names. Page arrows move through all 604 pages.
-2. Press **Start reciting** once. It loads the model and continues directly into microphone setup.
+2. Press the microphone button once. It loads the model and continues directly into microphone setup.
 3. Allow microphone access. The first model download can take a while; subsequent visits open the saved copy and initialize the engine again without downloading the weights.
 4. Recite the selected passage. Green means a phonetic match; amber means a word to review, not a proven mistake.
-5. Stop to pause and save a local session summary. Select any word while stopped to restart there. **Reset** clears the current session, not history.
+5. Stop to pause and save a local session summary. Click a Quran word to hear its reference recording; this leaves your reading position and results unchanged. **Reset** clears the current session, not history.
+
+The main controls are microphone, Teacher, show/hide, search, and settings. Turn Teacher on for a one-word hint after five seconds of quiet and immediate reference playback when tracking flags a word for review. Both behaviors use the same Teacher toggle. The magnifying-glass button opens **Find a verse** for voice search. Settings contains text search, the surah dropdown, reset, and appearance options. Desktop controls sit beside the centered book when its actual left gutter has room; otherwise they form a row above the page. Mobile uses five 44-pixel touch buttons above the page, with room reserved for the version badge. The upper-right Mushaf label shows the Juz with its Arabic ordinal name, such as `الجزء الأول`; page navigation remains centered above the text.
 
 The eye button hides or shows all Quran words, including matched words, without interrupting tracking. Light/dark themes, automatic following, and the last 30 session summaries are implemented. Matching uses the Balanced preset. The microphone stops when the tab is hidden or the page closes.
 
-The live cursor and completed word highlights advance monotonically during recitation. Revised recognition hypotheses cannot rewind them. To revisit earlier words deliberately, stop and select a word, reset, or choose another passage. When an endpoint hypothesis falls behind the displayed cursor, its older audio is not carried into the next verse.
+The live cursor and completed word highlights advance monotonically during recitation. Revised recognition hypotheses cannot rewind them. To revisit earlier words deliberately, stop and reset or choose another passage. When an endpoint hypothesis falls behind the displayed cursor, its older audio is not carried into the next verse.
 
 ## Offline use
 
@@ -69,16 +71,24 @@ Nothing has been committed, pushed, or deployed by this implementation.
 
 ## Visible application version
 
-The far-right header badge starts at **V1**. Every subsequent delivered change increments that number, including nonvisual fixes. `index.html` and the matching offline cache version in `public/sw.js` must be updated together; the repository rule is in `AGENTS.md`.
+The user restarted the far-right header badge at **V1** on 2026-10-10. Subsequent delivered changes continue with V2, V3, etc., including nonvisual fixes. `index.html` and the matching offline cache version in `public/sw.js` must be updated together; the repository rule is in `AGENTS.md`. The restarted series uses a distinct internal shell-cache key so it cannot collide with the original V1; the model and Teacher audio caches are preserved.
 
-The current release is **V54**, adding functional Teacher audio to `/test.html`: enable it in Settings, hear a reference word after five quiet seconds, replay words flagged for review after a pause, or press Hear this word. The standard desktop/mobile controls keep their existing behavior. The book preview retains experimental vowel review and madd timing evidence. Correct counts matched words; Mistakes counts words flagged for review by approximate tracking. The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
+The current release is **V9** of the restarted series. The book interface and Teacher audio appear in `index.html`, `mobile.html`, and `test.html`, using shared `src/book.js` and `src/book.css`. The main controls are microphone, a single Teacher toggle, show/hide, voice search, and settings. The Teacher icon now contains only a person, board, and pointer, with distinct enabled/disabled appearances in light and dark themes. Animated hover help replaces its settings section. Desktop rail placement now follows the page's available gutter instead of a fixed screen-width breakpoint; mobile has a compact row of 44-pixel controls above the page. The main magnifying-glass button opens voice-based **Find a verse**; text and surah search remain in settings. The two Teacher option checkboxes, manual “Hear this word” button, Teacher reports, and Madd debug buttons remain removed. Click any Quran word for its reference audio, even with automatic Teacher off; this does not change the cursor, counts, or review history. The upper-right Mushaf label contains only the Arabic Juz heading, from `الجزء الأول` through `الجزء الثلاثون`.
+
+Teacher combines five-second, single-word quiet hints with immediate flagged-word playback. Enable it before starting the microphone, then keep quiet while the 800 ms startup calibration runs, until the microphone turns red. The calibrated quiet-energy band, sustained-activity window, and local vowel-pattern evidence introduced in V5 remain in place to support held madd without relying on new recognition tokens. Reference audio prepares before capture is gated; queued learner results drain before a fresh recognition barrier excludes reference playback. Listening resumes at the highlighted word without rewinding or regrading. One playback runs at a time with the latest pending correction and existing cancellation guards. Quran-word hover details and non-grading Madd timing evidence remain available. V6 removed the two explanatory Madd hover messages; V7 removes development controls while retaining the underlying learning features.
+
+Changes are local and ready for the owner's normal build/deployment flow. No tests, builds, browser checks, or microphone tests were run for restarted V9.
+
+The badge identifies the application actually loaded, including an offline copy. It does not claim to show the newest available server version. If an older version is still visible after deployment, close every HafizAssist tab and reopen while connected so the waiting offline update can activate. An initial visit may be needed to download the update before closing all tabs and reopening. Builds append a model-configuration hash to the internal service-worker cache version to handle URL configuration updates safely.
 
 ## Architecture
 
 - `src/app.js`: passage selection, Quran rendering, capture lifecycle, history, UI state.
 - `src/alignment.js`: weighted semi-global phoneme alignment, free-start recovery past extra speech, connected-word matching, revised partial hypotheses, and supported lookahead before marking skipped words.
 - `src/recognition-boundary.js`: consumes token timestamps to preserve progress when earlier recognition text changes.
-- `src/teacher-mode.js`: reference word audio, bounded clip cache, quiet-time hints, review prompts, and playback cancellation on the book preview.
+- `src/book.js` and `src/book.css`: shared book interface, search/settings drawers, and floating controls for desktop, mobile, and the preview entry.
+- `src/teacher-mode.js`: reference word audio, bounded clip cache, quiet-time hints, review prompts, word-click playback, and playback cancellation on the book interface.
+- `src/teacher-activity.js`: sustained floating-point PCM activity with an adaptive ambient baseline, supplemented by recognition changes, for Teacher pause scheduling.
 - `public/audio-worklet.js`: continuous microphone resampling to 16 kHz mono PCM in 320 ms chunks.
 - `public/recognizer-worker.js`: model loading/cache, speech segments, Sherpa inference, bounded processing backlog.
 - `public/data/quran.json`: canonical per-word phonemes and HafsSmart glyph text for all 114 surahs.
@@ -95,9 +105,13 @@ Automatic tracking can be wrong. Automatic tajweed feedback can be wrong and doe
 
 The microphone panel adapts the forty-bar layout of [WaveformPlayer by ruixen.ui on 21st.dev](https://21st.dev/@ruixen.ui/components/waveform-player). Here the bars are driven by actual microphone levels instead of playback or random decorative data. The surrounding green-and-ivory interface is original to this project.
 
+The Teacher icon is an original inline SVG drawn to resemble the user's teacher reference: a person pointing at a board. Enabled/disabled details and light/dark palettes produce four appearances from the shared illustration.
+
 Quran data, HafsSmart font, and the compatible browser runtime were sourced from [Iam-Muslim/ReciteQuran](https://github.com/Iam-Muslim/ReciteQuran), inspected at commit `741d07e9964909696bffad3710f2ae1e4ce3e44d`. See [licenses/NOTICE.md](licenses/NOTICE.md) for source links and usage restrictions. The complete assembled site is subject to the included components' restrictions, despite the original project code's MIT license.
 
 ## Current verification status
+
+Restarted **V9** was implemented through code inspection. Tests, builds, browser checks, and microphone sessions were not run. The following notes describe earlier releases, before the version-number restart.
 
 V5's requested cache check ran the actual worker model loader with the real 72,705,392-byte local model, mocked Cache Storage, and a fresh worker context representing refresh. The initial load downloaded and saved once; the fresh context reused that cache with all network access disabled, making no new request and no cache rewrite. This checks loader logic, not a real browser's storage persistence or eviction policy. No builds, browser tests, microphone sessions, or recognition accuracy tests were run. Real-device recitation is still needed before claiming the tracking is working reliably.
 
@@ -106,6 +120,8 @@ V6 was implemented without running tests, builds, browser checks, or microphone 
 V7: tests and builds were not run, following the project instructions.
 
 ## Recitation debug (V8)
+
+This and the following release sections are historical. Development report buttons are no longer exposed in the current production interface; use the controls described above.
 
 The collapsible section at the bottom collects the latest 300 events in memory, even while closed. When tracking sticks, press **Mark stuck word**, stop reciting, and press **Copy debug report** before refreshing. Paste that report into the development conversation. If clipboard access fails, the full report is selected in the text area for manual copying. The regular live preview shows only the last 12 events; the copied report includes the complete retained log.
 
@@ -159,4 +175,10 @@ Open `/test.html` and use Settings → Teacher → Enable teacher. Hear this wor
 Reference clips come from Quran.com's public word-audio CDN. Inserted Bismillah and the four source words split by the phoneme dataset have explicit audio-position mappings. Up to three upcoming clips are prefetched when Teacher is enabled. Downloaded clips are cached separately from the model for up to six days, with a maximum of 200 retained clips. Direct media streaming is a fallback if readable downloads fail; that fallback is online only. This is not a full offline Quran audio pack. See [Teacher mode](docs/TEACHER-MODE.md) for source and caching details.
 
 Capture buffering is paused and discarded before playback, outstanding recognition results are excluded, and a fresh recognition session starts at the unchanged cursor. Capture resumes after a 400 ms echo tail. Cancellation, failed downloads, missing recordings, blocked audio, and playback timeouts restore listening. No tests, builds, browser checks, or microphone tests were run for V54.
+
+## Teacher pause scheduling (V55)
+
+V54 required an exactly empty inference queue at the instant its timer polled, even though capture continuously enqueues silence. It also restarted the pause clock on every small microphone RMS/peak crossing. V55 accepts a healthy bounded backlog, pauses PCM submission, and drains already queued learner results before resetting recognition. If those results change the reading position, a stale prompt is cancelled. Reference playback remains excluded from recognition and counts.
+
+Teacher scheduling now observes sustained float PCM energy with an adaptive ambient baseline and independent recognized-sound updates; the analyser only animates the mic. This is a heuristic, not a separate voice model, and background speech or unusual microphones may still resemble recitation. A countdown appears after one quiet second; Settings reports whether Teacher is listening or waiting for recognition to catch up. Teacher options are hidden while its master switch is off. Feedback appears above a modal Settings drawer. Cancelled review prompts remain eligible for the next pause; an audio failure gets one delayed retry, then offers manual replay instead of looping. No tests, builds, browser checks, or microphone tests were run for V55.
 
