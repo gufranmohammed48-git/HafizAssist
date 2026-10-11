@@ -1,9 +1,12 @@
 // Teacher audio is reference recitation, separate from the recognition model.
 // Keep the Quran page and its completed-word history unchanged during feedback.
+import { createTeacherVoices } from './teacher-voices.js';
 const AUDIO_BASE = 'https://audio.qurancdn.com/wbw/';
 const CACHE = 'recitealquran-teacher-audio-v1';
 const RETENTION = 6 * 24 * 60 * 60 * 1000;
 const MAX_CLIPS = 200;
+const MAX_CACHE_BYTES = 128 * 1024 * 1024;
+const PAUSE_HINT_MS = 3000;
 const SPLIT_WORDS = { '2:181': 3, '8:6': 4, '13:37': 8, '37:130': 3 };
 const abortError = () => new DOMException('Teacher playback cancelled.', 'AbortError');
 
@@ -15,8 +18,13 @@ export function teacherAudioReference(word) {
   const split = SPLIT_WORDS[`${surah}:${ayah}`];
   const combined = Boolean(split && (position === split || position === split + 1));
   if (split && position > split) position--;
+  // Quran.com's audio combines إِلْ يَاسِينَ at 37:130, while the Tanzil
+  // timing text retains four separate words in that verse.
+  const timingPosition = surah === 37 && ayah === 130 ? word.position + 1 : position;
+  const timingWordCount = Number.isInteger(word.wordCount)
+    ? word.wordCount - (split && !(surah === 37 && ayah === 130) ? 1 : 0) : undefined;
   const path = [surah, ayah, position].map(value => String(value).padStart(3, '0')).join('_');
-  return { url: `${AUDIO_BASE}${path}.mp3`, combined, split };
+  return { url: `${AUDIO_BASE}${path}.mp3`, combined, split, surah, ayah, position, timingPosition, timingWordCount };
 }
 
 export function createTeacherMode({ getState, pauseRecognition, resumeRecognition, onStateChange }) {
@@ -38,7 +46,35 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
   function save() {
     try { localStorage.setItem('recitealquran-teacher', JSON.stringify({ enabled })); } catch {}
   }
-  function message(text) { if ($('teacher-status').textContent !== text) $('teacher-status').textContent = text; }
+  const voices = createTeacherVoices({
+    getEnabled: () => enabled,
+    onToggle: () => setEnabled(!enabled),
+    onOpen: () => unlock(true),
+    onChange() {
+      // Choosing a reciter is a direct gesture to enable spoken assistance.
+      // Voice selection and Teacher's master switch must not disagree.
+      cancel({ reset: true });
+      enabled = true; enabledAt = Date.now();
+      unlock(true); save();
+      message('Teacher on. Pause for three seconds to hear help. Words marked for review play automatically.');
+      refresh(); onStateChange?.();
+    },
+  });
+  function message(text) {
+    if ($('teacher-status').textContent !== text) $('teacher-status').textContent = text;
+    voices?.setStatus(text);
+  }
+  function setEnabled(value) {
+    enabled = Boolean(value);
+    if (enabled) {
+      enabledAt = Date.now(); hinted.clear(); corrected.clear(); failedPrompts.clear();
+      unlock(true);
+      message('Teacher on. Pause for three seconds to hear help. Words marked for review play automatically.');
+    } else {
+      cancel(); message('Teacher off. Click a word to hear its reference audio.');
+    }
+    save(); refresh(); onStateChange?.();
+  }
   function positionCard() {
     if (card.hidden) return;
     const page = document.querySelector('.reader')?.getBoundingClientRect();
@@ -71,6 +107,14 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       teacherAudioReference(word).url !== teacherAudioReference(words[index - 1])?.url));
   }
   function showCard(label, words, detail, temporary = false, kind = 'reference') {
+    // On the dedicated phone page, tapping a word plays audio without a
+    // second word card. Keep word-info details and automatic Teacher feedback.
+    if (document.documentElement.dataset.layout === 'mobile' && activeJob?.kind === 'manual') {
+      if (kind !== 'error') { hideCard(); return; }
+      // Failed manual audio remains actionable, but does not repeat the word.
+      words = null;
+      detail = detail.replace(' Press Replay to try again.', ' Tap the word to try again.');
+    }
     clearTimeout(dismissTimer); clearTimeout(closeTimer); closeTimer = null; cancelAnimationFrame(cardFrame);
     $('teacher-feedback-label').textContent = label;
     feedbackWords = Array.isArray(words) ? words : words ? [words] : [];
@@ -120,10 +164,16 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       const cache = await caches.open(CACHE);
       const entries = await Promise.all((await cache.keys()).map(async request => {
         const response = await cache.match(request);
-        return { request, saved: Number(response?.headers.get('X-Teacher-Saved-At')) || 0 };
+        return { request, saved: Number(response?.headers.get('X-Teacher-Saved-At')) || 0,
+          bytes: Number(response?.headers.get('Content-Length')) || 0 };
       }));
       const fresh = entries.filter(entry => Date.now() - entry.saved < RETENTION).sort((a, b) => b.saved - a.saved);
-      const keep = new Set(fresh.slice(0, MAX_CLIPS).map(entry => entry.request.url));
+      const keep = new Set();
+      let retainedBytes = 0;
+      for (const entry of fresh) {
+        if (keep.size >= MAX_CLIPS || retainedBytes + entry.bytes > MAX_CACHE_BYTES) continue;
+        keep.add(entry.request.url); retainedBytes += entry.bytes;
+      }
       await Promise.all(entries.filter(entry => !keep.has(entry.request.url)).map(entry => cache.delete(entry.request)));
     } catch {} // Private browsing or quota limits must not prevent streaming.
   }
@@ -140,17 +190,18 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
         await cache.delete(url);
       }
     } catch {}
-    if (!navigator.onLine) throw new Error('This word’s audio is not saved on this device. Connect to download it.');
+    if (!navigator.onLine) throw new Error('This reference audio is not saved on this device. Connect to download it.');
     const download = new AbortController();
     const abort = () => download.abort(); signal.addEventListener('abort', abort, { once: true });
     const timeout = setTimeout(abort, 10000);
     try {
       const response = await fetch(url, { signal: download.signal, credentials: 'omit', cache: 'no-store' });
-      if (!response.ok) throw new Error('The reference recording for this word is unavailable.');
+      if (!response.ok) throw new Error('The reference recording is unavailable.');
       const bytes = await response.arrayBuffer();
       if (signal.aborted) throw abortError();
       if (cache) {
         const headers = new Headers({ 'Content-Type': response.headers.get('Content-Type') || 'audio/mpeg' });
+        headers.set('Content-Length', String(bytes.byteLength));
         headers.set('X-Teacher-Saved-At', String(Date.now()));
         try { await cache.put(url, new Response(bytes.slice(0), { headers })); void pruneCache(); } catch {}
       }
@@ -161,14 +212,28 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     } finally { clearTimeout(timeout); signal.removeEventListener('abort', abort); }
   }
   async function prepare(word, signal) {
-    const reference = teacherAudioReference(word);
+    let reference = teacherAudioReference(word);
     if (!reference) throw new Error('Choose a Quran word first.');
+    if (voices) reference = await voices.resolve(reference, signal);
     try {
-      const bytes = await fetchClip(reference.url, signal);
       if (!audioContext) throw new Error('Click a word to allow audio playback.');
-      const buffer = await audioContext.decodeAudioData(bytes);
-      if (!buffer.duration || buffer.duration > 12) throw new Error('The reference clip could not be read.');
-      return { buffer, reference };
+      const readBuffer = async ref => {
+        const buffer = await audioContext.decodeAudioData(await fetchClip(ref.url, signal));
+        const selectedVoice = ref.voiceId && ref.voiceId !== 'word-reference';
+        if (!buffer.duration || buffer.duration > (selectedVoice ? 900 : 12)) throw new Error('The reference recording could not be read.');
+        return buffer;
+      };
+      let buffer = await readBuffer(reference);
+      // Timing metadata must belong to this exact recording. Invalid bounds
+      // use the original word recording, never a whole ayah or guessed slice.
+      if (Number.isFinite(reference.start) && Number.isFinite(reference.end) &&
+          (reference.start < 0 || reference.end <= reference.start || reference.end > buffer.duration + .05)) {
+        reference = voices.fallback(teacherAudioReference(word), 'Word timing does not fit this recording.');
+        buffer = await readBuffer(reference);
+      }
+      const start = reference.start ?? 0;
+      const duration = reference.end == null ? buffer.duration : Math.min(reference.end, buffer.duration) - start;
+      return { buffer, reference, start, duration };
     } catch (error) {
       if (signal.aborted) throw abortError();
       if (!navigator.onLine) throw error;
@@ -178,10 +243,15 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
   }
   function playClip(clip, signal) {
     return new Promise((resolve, reject) => {
-      let timer, finished = false;
+      let timer, endTimer, finished = false, started = false;
+      const timed = Number.isFinite(clip.reference.start) && Number.isFinite(clip.reference.end);
       const cleanup = () => {
-        clearTimeout(timer); signal.removeEventListener('abort', abort);
-        if (mediaAudio) { mediaAudio.onended = null; mediaAudio.onerror = null; }
+        clearTimeout(timer); clearTimeout(endTimer); signal.removeEventListener('abort', abort);
+        if (mediaAudio) {
+          mediaAudio.onended = null; mediaAudio.onerror = null; mediaAudio.onloadedmetadata = null;
+          mediaAudio.onseeked = null; mediaAudio.ontimeupdate = null;
+          mediaAudio.onplaying = null; mediaAudio.onwaiting = null;
+        }
         if (source) { source.onended = null; source.disconnect(); source = null; }
       };
       const finish = error => { if (finished) return; finished = true; cleanup(); error ? reject(error) : resolve(); };
@@ -194,17 +264,43 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       timer = setTimeout(() => {
         try { source?.stop(); } catch {}
         mediaAudio?.pause(); finish(new Error('Teacher audio timed out. Click the word to retry.'));
-      }, 15000);
+      }, clip.reference.format === 'ayah' ? Math.min(915000, ((clip.duration || 900) + 15) * 1000) :
+        Math.max(15000, Math.min(915000, ((clip.duration || (timed ? clip.reference.end - clip.reference.start : 0)) + 10) * 1000)));
       if (clip.direct) {
         if (!mediaAudio) { finish(new Error('Click a word to allow audio playback.')); return; }
         mediaAudio.onended = () => finish();
         mediaAudio.onerror = () => finish(new Error('The reference recording could not load. Your microphone can continue.'));
+        const begin = () => {
+          if (finished || started || signal.aborted) return;
+          started = true;
+          void mediaAudio.play().catch(() => finish(new Error('Audio was blocked. Click the word to allow playback.')));
+        };
+        if (timed) {
+          const stop = () => { mediaAudio.pause(); finish(); };
+          mediaAudio.onloadedmetadata = () => {
+            if (finished || signal.aborted) return;
+            if (!Number.isFinite(mediaAudio.duration) || clip.reference.end > mediaAudio.duration + .05) {
+              finish(new Error('Word timing does not fit this recording. Choose another Teacher voice.')); return;
+            }
+            mediaAudio.onseeked = begin;
+            try { mediaAudio.currentTime = clip.reference.start; } catch (error) { finish(error); return; }
+            if (!clip.reference.start) begin();
+          };
+          mediaAudio.onplaying = () => {
+            clearTimeout(endTimer);
+            endTimer = setTimeout(stop, Math.max(0, clip.reference.end - mediaAudio.currentTime) * 1000);
+          };
+          mediaAudio.onwaiting = () => clearTimeout(endTimer);
+          mediaAudio.ontimeupdate = () => { if (started && mediaAudio.currentTime >= clip.reference.end) stop(); };
+        }
         mediaAudio.src = clip.reference.url;
-        void mediaAudio.play().catch(() => finish(new Error('Audio was blocked. Click the word to allow playback.')));
+        mediaAudio.preload = 'auto';
+        if (!timed) begin();
       } else {
         try {
           source = audioContext.createBufferSource(); source.buffer = clip.buffer;
-          source.connect(audioContext.destination); source.onended = () => finish(); source.start();
+          source.connect(audioContext.destination); source.onended = () => finish();
+          source.start(0, clip.start || 0, clip.duration || clip.buffer.duration);
         } catch (error) { finish(error); }
       }
     });
@@ -236,7 +332,7 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     const before = getState();
     if (document.hidden || before.voiceSearch || !['idle', 'recording'].includes(before.phase)) return;
     const promptWords = [word];
-    const label = kind === 'correction' ? 'Review this word' : kind === 'hint' ? 'A little help' :
+    let label = kind === 'correction' ? 'Review this word' : kind === 'hint' ? 'A little help' :
       promptWords.length > 1 ? 'Reference words' : 'Reference word';
     const job = { controller: new AbortController(), kind, playing: false, page: before.page,
       cursor: before.cursor, speechAt: before.speechAt, gated: false };
@@ -250,6 +346,11 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       // none of the teacher's words or their echoes can advance the pointer.
       const clips = [];
       clips.push(...await Promise.all(promptWords.map(nextWord => prepare(nextWord, signal))));
+      const reference = clips[0].reference;
+      if (!reference.combined && word.audioLabel) promptWords[0] = { ...word, audioLabel: word.accessible };
+      const ayahHelp = reference.format === 'ayah';
+      if (ayahHelp) label = 'Ayah help';
+      else if (reference.wordFallback) label = 'Word reference';
       if (clips.some(clip => !clip.direct)) await resumeAudio(signal);
       let now = getState();
       if (signal.aborted || document.hidden || now.voiceSearch || now.page !== before.page || now.phase !== before.phase ||
@@ -264,8 +365,12 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
             (kind === 'hint' && now.speechAt > before.speechAt)) throw abortError();
       }
       job.playing = true;
-      showCard(label, promptWords, promptWords.length > 1 ? 'Listen to these words in order.' :
-        clips[0].reference.combined ? 'Playing the complete source word.' : 'Listen to the reference recording.');
+      const voiceLabel = reference.voiceName && (reference.voiceId !== 'word-reference' || reference.wordFallback)
+        ? `${reference.voiceName}${reference.style ? ` · ${reference.style}` : ''}. ` : '';
+      showCard(label, promptWords, ayahHelp
+        ? `${voiceLabel}Playing ayah ${reference.surah}:${reference.ayah}. ${reference.notice || 'Individual-word timing is unavailable for this recording.'}`
+        : reference.wordFallback ? reference.notice :
+          `${voiceLabel}${reference.combined ? 'Playing the complete source word.' : 'Listen to the reference word.'}`);
       message('Playing reference audio…');
       for (const clip of clips) {
         if (signal.aborted) throw abortError();
@@ -275,9 +380,11 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       if (kind === 'hint') hinted.add(key);
       if (kind === 'correction') { corrected.add(key); if (correction?.key === key) correction = null; }
       failedPrompts.delete(`${kind}:${key}`);
-      showCard('Your turn', promptWords, kind === 'correction' ? 'Continue from the highlighted word. The flagged word remains available for review.' :
-        kind === 'manual' ? 'Continue reciting when you’re ready.' :
-        promptWords.length > 1 ? 'Read these words, starting at the highlighted word.' : 'Read the highlighted word when you’re ready.', true);
+      showCard(ayahHelp ? 'Ayah help · Your turn' : 'Your turn', promptWords,
+        ayahHelp ? `${voiceLabel}Continue from the highlighted word when you’re ready.` :
+          kind === 'correction' ? 'Continue from the highlighted word. The flagged word remains available for review.' :
+          kind === 'manual' ? 'Continue reciting when you’re ready.' :
+          'Read the highlighted word when you’re ready.', true);
       message(clips.some(clip => clip.direct) ? 'Listening. Some audio streamed online and was not saved offline.' : 'Ready. Downloaded word audio is kept on this device for up to six days.');
     } catch (error) {
       if (error.name !== 'AbortError') {
@@ -332,8 +439,11 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     const busy = !['idle', 'recording'].includes(state.phase) || state.voiceSearch;
     $('teacher-replay').disabled = !feedbackWords.length || busy || Boolean(activeJob || pendingManual);
     $('teacher-enabled').disabled = busy;
+    voices?.setDisabled(busy || Boolean(activeJob || pendingManual), busy);
+    voices?.refreshEnabled(enabled);
     $('teacher-enabled').setAttribute('aria-pressed', String(enabled));
-    const label = enabled ? 'Teacher on. Click to turn off.' : 'Teacher off. Click to turn on.';
+    const label = voices ? `Teacher ${enabled ? 'on' : 'off'}. Open Teacher options.` :
+      enabled ? 'Teacher on. Click to turn off.' : 'Teacher off. Click to turn on.';
     $('teacher-enabled').setAttribute('aria-label', label);
     const help = busy ? 'Teacher mode is unavailable while audio is loading, starting, stopping, or searching.' : $('teacher-enabled').dataset.help;
     $('teacher-tooltip').textContent = help;
@@ -345,13 +455,21 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
       if (correction && (correction.page !== state.page || state.cursor - correction.cursor > 6)) correction = null;
     }
     // Fetch only the next three words, not a whole chapter or Quran audio pack.
-    if (enabled && state.word && navigator.onLine && !state.voiceSearch && !busy && warmKey !== state.key) {
-      warmController?.abort(); warmController = new AbortController(); warmKey = state.key;
+    const nextWarmKey = `${voices?.key || 'word-reference'}:${state.key}`;
+    if (enabled && state.word && navigator.onLine && !state.voiceSearch && !busy && warmKey !== nextWarmKey) {
+      warmController?.abort(); warmController = new AbortController(); warmKey = nextWarmKey;
       const signal = warmController.signal;
       void (async () => {
+        const fetched = new Set();
         for (const word of playbackWords(state.nextWords || [])) {
           if (signal.aborted) break;
-          try { await fetchClip(teacherAudioReference(word).url, signal); } catch { if (signal.aborted) break; }
+          try {
+            const base = teacherAudioReference(word);
+            const reference = voices ? await voices.resolve(base, signal, { quiet: true }) : base;
+            if (fetched.has(reference.url)) continue;
+            fetched.add(reference.url);
+            await fetchClip(reference.url, signal);
+          } catch { if (signal.aborted) break; }
         }
       })();
     }
@@ -406,12 +524,12 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     }
     // Late recognition can move the cursor during a real quiet pause. The
     // post-drain cursor check already cancels stale hints; it must not also
-    // postpone every new hint for another five seconds.
+    // postpone every new hint for another three seconds.
     const quietFor = Date.now() - Math.max(state.speechAt, enabledAt);
     const canHint = !hinted.has(state.key) && retryReady('hint', state.key);
-    if (canHint && quietFor >= 5000) void speak(state.word, 'hint', state.key);
+    if (canHint && quietFor >= PAUSE_HINT_MS) void speak(state.word, 'hint', state.key);
     else if (canHint && quietFor >= 1000) {
-      const seconds = Math.max(1, Math.ceil((5000 - quietFor) / 1000));
+      const seconds = Math.max(1, Math.ceil((PAUSE_HINT_MS - quietFor) / 1000));
       const detail = `Next word in ${seconds} second${seconds === 1 ? '' : 's'}…`;
       message(`Teacher on · ${detail}`);
       if (card.hidden || card.dataset.state === 'countdown') showCard('Teacher on', null, detail, false, 'countdown');
@@ -423,10 +541,8 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
     }
   }, 250);
   $('teacher-enabled').addEventListener('click', () => {
-    enabled = !enabled;
-    if (enabled) { enabledAt = Date.now(); hinted.clear(); corrected.clear(); failedPrompts.clear(); unlock(); message('Teacher on. Pause for five seconds to hear the next word. Words marked for review play immediately.'); }
-    else { cancel(); message('Teacher off. Manual word replay is still available.'); }
-    save(); refresh();
+    if (voices) { voices.togglePanel(); return; }
+    setEnabled(!enabled);
   });
   $('teacher-replay').addEventListener('click', () => { void hearWord(feedbackWords[0]); });
   $('teacher-dismiss').addEventListener('click', () => cancel());
@@ -434,9 +550,13 @@ export function createTeacherMode({ getState, pauseRecognition, resumeRecognitio
   window.addEventListener('scroll', positionCard, { passive: true });
   new ResizeObserver(positionCard).observe(document.querySelector('.reader'));
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancel(); });
-  window.addEventListener('pagehide', () => {
+  window.addEventListener('pagehide', event => {
+    voices?.closePanel({ restoreFocus: false });
+    // Keep the panel and unlocked media element usable after Back/Forward
+    // restores this document from the browser's page cache.
+    if (!event.persisted) voices?.dispose();
     cancel(); mediaAudio?.pause(); void audioContext?.close().catch(() => {});
-    if (silentUrl) URL.revokeObjectURL(silentUrl);
+    if (!event.persisted && silentUrl) URL.revokeObjectURL(silentUrl);
   });
   $('book-settings').addEventListener('close', () => {
     if (card.parentElement === document.body) return;

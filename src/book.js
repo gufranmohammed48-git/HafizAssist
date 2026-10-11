@@ -55,7 +55,7 @@ function setupBookLayout() {
   const teacherToggle = control('teacher-enabled', 'Turn Teacher on',
     `<span id="teacher-icon-on" hidden>${teacherSymbol(false)}</span><span id="teacher-icon-off">${teacherSymbol(true)}</span>`);
   teacherToggle.setAttribute('aria-pressed', 'false');
-  const teacherHelp = 'When Teacher is on, a five-second quiet pause plays the next word. If a word is flagged as a possible mistake, Teacher recites it correctly so you can listen and try again.';
+  const teacherHelp = 'When Teacher is on, a three-second quiet pause plays the next word. If a word is flagged as a possible mistake, Teacher recites it correctly so you can listen and try again.';
   teacherToggle.dataset.help = teacherHelp;
   teacherToggle.removeAttribute('title'); // Use one styled tooltip, without a second native bubble.
   const teacherTooltip = document.createElement('span');

@@ -8,6 +8,7 @@ body.book-view.dark{background:#0e1712}
 .book-view .header{height:0;padding:0;margin:0}
 .book-view .header .bismillah{display:none}
 .book-view .header .app-version{position:fixed;top:10px;right:10px;z-index:12;background:var(--paper)}
+/* The mobile document keeps its loaded version in markup, without a badge. */
 .book-view main{max-width:1180px;padding:38px 24px 32px;margin:0 auto}
 .book-view .reader{margin:0 auto;padding:0 28px;border-radius:3px;box-shadow:0 20px 65px #0002,inset 0 0 0 5px var(--paper),inset 0 0 0 6px var(--border);background:linear-gradient(90deg,#00000004,transparent 5%,transparent 95%,#00000005),var(--paper)}
 .book-view .surah-heading{padding:12px 0}
@@ -95,6 +96,44 @@ body.book-view.dark{background:#0e1712}
   .book-view :is(#book-settings,#voice-dialog,#word-info,#mic-notice,#search-lock-tip,#model-picker),.book-view :is(#book-settings,#voice-dialog)::backdrop{transition:none}
   .book-view #word-info details[open] .word-info-reference{animation:none}
 }
+
+/* Leave the top-row badge space available on the dedicated phone layout. */
+html[data-layout=mobile] .book-view.mobile-reciting main{padding-bottom:calc(32px + var(--mobile-reading-tail,0px))}
+
+/* The preview panel reserves the measured toolbar area and leaves the page
+   centered. JS delays hidden on close for browsers without display animation. */
+html[data-teacher-voices=preview] #teacher-voices{position:fixed;z-index:16;top:16px;left:82px;width:min(320px,calc(100vw - 98px));max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;padding:18px;border:1px solid var(--border);border-radius:20px;background:var(--card);background:color-mix(in srgb,var(--card) 96%,transparent);color:var(--ink);box-shadow:8px 12px 44px #0003;backdrop-filter:blur(12px);opacity:0;pointer-events:none;transform:translateX(-10px) scale(.88,.92);clip-path:inset(8% 100% 8% 0 round 20px);transform-origin:left center;transition:transform 480ms cubic-bezier(.22,1,.36,1),clip-path 480ms cubic-bezier(.22,1,.36,1),opacity 260ms ease;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+html[data-teacher-voices=preview] #teacher-voices[data-placement=row]{transform:translateY(-10px) scale(.92,.92);clip-path:inset(0 0 100% 0 round 20px);transform-origin:center top}
+html[data-teacher-voices=preview] #teacher-voices.is-open{opacity:1;pointer-events:auto;transform:translate(0) scale(1);clip-path:inset(0 round 20px)}
+html[data-teacher-voices=preview] #teacher-voices>:not(.teacher-voices-heading){opacity:0;transform:translateY(8px);transition:opacity 180ms ease,transform 320ms cubic-bezier(.22,1,.36,1)}
+html[data-teacher-voices=preview] #teacher-voices.is-open>:not(.teacher-voices-heading){opacity:1;transform:translateY(0);transition-duration:300ms,420ms;transition-delay:90ms}
+html[data-teacher-voices=preview] .teacher-voices-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px}
+html[data-teacher-voices=preview] .teacher-voices-heading h2{font-size:17px;font-weight:650;line-height:1.4;margin:0}
+html[data-teacher-voices=preview] .teacher-voices-close{display:flex;align-items:center;justify-content:center;width:30px;height:30px;min-width:30px;min-height:30px;padding:0;font-size:26px;line-height:1;border-radius:50%;color:var(--muted)}
+html[data-teacher-voices=preview] .teacher-voices-help{font-size:12px;line-height:1.65;color:var(--muted);margin:0 0 14px}
+html[data-teacher-voices=preview] .teacher-voices-enable-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 12px;border:1px solid var(--border);border-radius:13px;background:var(--paper);font-size:13px;font-weight:650}
+html[data-teacher-voices=preview] .teacher-voices-toggle{display:flex;align-items:center;justify-content:center;gap:8px;flex:0 0 87px;min-width:87px;min-height:36px;padding:7px 8px;border:1px solid var(--border);border-radius:22px;background:var(--card);color:var(--muted);font-size:12px;font-weight:650;line-height:1;transition:background 220ms ease,color 220ms ease,border-color 220ms ease}
+html[data-teacher-voices=preview] .teacher-voices-toggle[aria-checked=true]{border-color:var(--green);background:var(--soft);color:var(--green)}
+html[data-teacher-voices=preview] .teacher-voices-toggle:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+html[data-teacher-voices=preview] .teacher-voices-switch-track{display:block;position:relative;flex:0 0 32px;width:32px;height:18px;border-radius:12px;background:var(--border);transition:background 220ms ease}
+html[data-teacher-voices=preview] .teacher-voices-switch-track::after{content:'';position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--paper);box-shadow:0 1px 3px #0003;transition:transform 260ms cubic-bezier(.22,1,.36,1)}
+html[data-teacher-voices=preview] .teacher-voices-toggle[aria-checked=true] .teacher-voices-switch-track{background:var(--green)}
+html[data-teacher-voices=preview] .teacher-voices-toggle[aria-checked=true] .teacher-voices-switch-track::after{transform:translateX(14px)}
+html[data-teacher-voices=preview] .teacher-voices-switch-state{min-width:20px;text-align:left}
+html[data-teacher-voices=preview] .teacher-voices-instruction{font-size:11px;line-height:1.5;color:var(--muted);margin:12px 0 9px}
+html[data-teacher-voices=preview] .teacher-voice-choices{min-width:0;padding:0;border:0;margin:0}
+html[data-teacher-voices=preview] .teacher-voice-group{display:grid;gap:5px;margin:0 0 12px}
+html[data-teacher-voices=preview] .teacher-voice-group h3{font-size:11px;font-weight:650;color:var(--muted);margin:2px 0 3px}
+html[data-teacher-voices=preview] .teacher-voice-choice{display:flex;align-items:center;gap:10px;min-height:39px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:10px;color:var(--ink);background:var(--paper);font-size:12px;font-weight:400;letter-spacing:0;line-height:1.4;cursor:pointer;transition:background 180ms ease,border-color 180ms ease}
+html[data-teacher-voices=preview] .teacher-voice-choice:hover:not(.is-disabled){background:var(--soft)}
+html[data-teacher-voices=preview] .teacher-voice-choice.is-selected{background:var(--soft);border-color:var(--green)}
+html[data-teacher-voices=preview] .teacher-voice-choice.is-disabled{opacity:.6;cursor:default}
+html[data-teacher-voices=preview] .teacher-voice-choice input[type=radio]{flex:0 0 15px;width:15px;height:15px;min-width:15px;min-height:15px;margin:0;padding:0;accent-color:var(--green)}
+html[data-teacher-voices=preview] #teacher-voice-notice{font-size:11px;line-height:1.6;color:var(--muted);margin:0;padding-top:10px;border-top:1px solid var(--border)}
+html[data-teacher-voices=preview] #teacher-voices-status{font-size:11px;line-height:1.6;color:var(--ink);margin:8px 0 0}
+html[data-teacher-voices=preview] #teacher-voices-status:empty{display:none}
+html[data-teacher-voices=preview] .teacher-panel-open #teacher-tooltip{display:none}
+@media(prefers-reduced-motion:reduce){html[data-teacher-voices=preview] #teacher-voices,html[data-teacher-voices=preview] #teacher-voices>:not(.teacher-voices-heading),html[data-teacher-voices=preview] .teacher-voice-choice,html[data-teacher-voices=preview] .teacher-voices-toggle,html[data-teacher-voices=preview] .teacher-voices-switch-track,html[data-teacher-voices=preview] .teacher-voices-switch-track::after{transition:none}}
 /* Details follow the hovered word without changing the centered page. */
 .book-view #word-info,.book-view #word-info.is-review{right:auto;bottom:auto;translate:none;width:max-content;max-width:min(340px,calc(100vw - 16px));max-height:calc(100dvh - 16px);padding:10px 12px;transform-origin:center;transition:scale 320ms cubic-bezier(.2,.7,.2,1),opacity 320ms ease,display 320ms allow-discrete;}
 @media(max-width:899px){

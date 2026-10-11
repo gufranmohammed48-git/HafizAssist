@@ -14,6 +14,7 @@ const juzNames = ['الأول', 'الثاني', 'الثالث', 'الرابع', 
   'الحادي والعشرون', 'الثاني والعشرون', 'الثالث والعشرون', 'الرابع والعشرون', 'الخامس والعشرون', 'السادس والعشرون',
   'السابع والعشرون', 'الثامن والعشرون', 'التاسع والعشرون', 'الثلاثون'];
 const bookView = document.body.classList.contains('book-view');
+const mobileView = document.documentElement.dataset.layout === 'mobile';
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
@@ -40,6 +41,7 @@ let lastFollowedAyah = null, savedThisRun = false;
 let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
 let scrollFrame;
+let mobileAlignmentPending = false;
 let micNoticeTimer, micNoticeExpiresAt = 0, pendingMicNotice = '';
 function hideMicNotice() {
   clearTimeout(micNoticeTimer); pendingMicNotice = ''; micNoticeExpiresAt = 0;
@@ -190,6 +192,11 @@ document.addEventListener('pointerdown', event => {
 });
 function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
+  if (mobileView) {
+    const reading = phase === 'recording' && !voiceSearch;
+    document.body.classList.toggle('mobile-reciting', reading);
+    if (!reading) document.querySelector('main').style.removeProperty('--mobile-reading-tail');
+  }
   $('voice-open').disabled = !chapter || locked();
   const voiceShortcut = $('book-search');
   if (voiceShortcut) {
@@ -258,6 +265,7 @@ function paint() {
 }
 
 function followWord(force = false) {
+  if (mobileAlignmentPending) return;
   cancelAnimationFrame(scrollFrame);
   scrollFrame = requestAnimationFrame(() => {
     const element = elements[cursor];
@@ -265,9 +273,30 @@ function followWord(force = false) {
     const word = element.getBoundingClientRect();
     const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
     // The Mushaf grows with its text; only the document scrolls.
-    if (force || word.top < 48 || word.bottom > innerHeight - 64) {
+    if (force || word.top < (mobileView ? 0 : 48) || word.bottom > innerHeight - 64) {
       window.scrollBy({ top: word.top - innerHeight / 3, behavior });
     }
+  });
+}
+function alignMobileReadingStart() {
+  if (!mobileView || voiceSearch || phase !== 'recording') return;
+  cancelAnimationFrame(scrollFrame);
+  mobileAlignmentPending = true;
+  scrollFrame = requestAnimationFrame(() => {
+    mobileAlignmentPending = false;
+    if (phase !== 'recording' || voiceSearch || $('voice-dialog').open) return;
+    // Align the first recitable line, including an opening Bismillah, rather
+    // than the page number, Juz label, or decorative surah heading.
+    const firstLine = $('ayahs').querySelector('.bismillah-line, .mushaf-line');
+    if (!firstLine) return;
+    const main = document.querySelector('main');
+    main.style.setProperty('--mobile-reading-tail', '0px');
+    const target = window.scrollY + firstLine.getBoundingClientRect().top;
+    const normalLimit = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    // Short opening pages also need enough room below them for the browser
+    // to reach this position. Add only the missing scroll distance.
+    main.style.setProperty('--mobile-reading-tail', `${Math.max(0, target - normalLimit)}px`);
+    window.scrollTo({ top: target, behavior: 'instant' });
   });
 }
 function appendWord(row, word, text) {
@@ -321,7 +350,7 @@ function renderPassage(continuing = false) {
         const opening = chapters[0].verses[0];
         const text = ['بِسْمِ', 'اللَّهِ', 'الرَّحْمَٰنِ', 'الرَّحِيمِ'];
         opening.aya_phonemes_list.forEach((phoneme, position) => {
-          appendWord(row, { surah: verse.surah, ayah: 1, position, bismillah: true,
+          appendWord(row, { surah: verse.surah, ayah: 1, position, wordCount: opening.aya_phonemes_list.length, bismillah: true,
             phoneme: normalize(phoneme), accessible: text[position], rules: opening.wordRules[position], reference: opening.referenceWords[position] }, text[position]);
         });
         $('ayahs').append(row);
@@ -332,7 +361,7 @@ function renderPassage(continuing = false) {
     const readable = verse.aya_text.trim().split(/\s+/u);
     verse.aya_phonemes_list.forEach((phoneme, position) => {
       if (layout[position][0] !== currentPage) return;
-      appendWord(pageLine(layout[position][1]), { surah: verse.surah, ayah: verse.ayah, position,
+      appendWord(pageLine(layout[position][1]), { surah: verse.surah, ayah: verse.ayah, position, wordCount: verse.aya_phonemes_list.length,
         phoneme: normalize(phoneme), accessible: readable[position] || `Word ${position + 1}`, rules: verse.wordRules[position], reference: verse.referenceWords[position]
       }, glyphs[position] || readable[position] || '…');
     });
@@ -353,6 +382,7 @@ function renderPassage(continuing = false) {
     cursor = 0; segmentStart = 0; lastFollowedAyah = null; paint();
   } else resetSession();
   $('ayahs').scrollTop = 0; controls(); fitMushafLines();
+  if (continuing) alignMobileReadingStart();
 }
 function fitMushafLines() {
   const reader = document.querySelector('.reader'), container = $('ayahs');
@@ -789,6 +819,7 @@ async function startRecording(file) {
     }
     phase = 'recording'; if (!voiceSearch) { startedAt = Date.now(); savedThisRun = false; } controls(); animateLevel();
     status(voiceSearch ? 'Recite any passage, then press Find verse.' : 'Listening. Recite the highlighted passage at your own pace.');
+    alignMobileReadingStart();
   } catch (error) {
     debug.log('start-error', { name: error.name, message: error.message });
     await releaseAudio(); phase = 'idle'; controls();
