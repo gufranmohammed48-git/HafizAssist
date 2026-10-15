@@ -18,6 +18,41 @@ function setupBookLayout() {
   practiceActions.insertBefore(document.getElementById('theme'), document.querySelector('.font-controls'));
   document.getElementById('theme').title = 'Switch color theme';
   section('Practice & text size', practiceActions);
+  if (document.documentElement.dataset.tajweedReview === 'experimental') {
+    const timing = document.createElement('div'); timing.className = 'tajweed-preview-settings';
+    const label = document.createElement('label'); label.htmlFor = 'tajweed-speed'; label.textContent = 'Recitation pace';
+    const select = document.createElement('select'); select.id = 'tajweed-speed';
+    for (const [value, text] of [['fast', 'Fast'], ['normal', 'Normal'], ['slow', 'Slow']]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
+    }
+    select.value = 'normal';
+    try {
+      const saved = localStorage.getItem('recitealquran-tajweed-speed');
+      if (['fast', 'normal', 'slow'].includes(saved)) select.value = saved;
+    } catch {}
+    select.addEventListener('change', () => {
+      try { localStorage.setItem('recitealquran-tajweed-speed', select.value); } catch {}
+    });
+    const note = document.createElement('p'); note.id = 'tajweed-preview-note'; note.className = 'hint';
+    note.textContent = 'Experimental timing estimates appear when you hover over a recited word. Pace changes apply to new estimates.';
+    select.setAttribute('aria-describedby', note.id);
+    timing.append(label, select, note); section('Tajweed preview', timing);
+  }
+  const tajweedColoursEnabled = document.documentElement.dataset.tajweedColors === 'preview';
+  if (tajweedColoursEnabled) {
+    const colours = document.createElement('div'); colours.className = 'tajweed-colour-settings';
+    const legend = document.createElement('ul'); legend.className = 'tajweed-colour-legend';
+    for (const [group, label] of [['madd', 'Madd'], ['ghunnah', 'Ghunnah'], ['idgham', 'Idgham'], ['ikhfa', 'Ikhfa & Iqlab'], ['qalqalah', 'Qalqalah'], ['silent', 'Silent letters']]) {
+      const item = document.createElement('li'); item.dataset.tajweedColour = group;
+      const swatch = document.createElement('span'); swatch.className = 'tajweed-colour-swatch'; swatch.setAttribute('aria-hidden', 'true');
+      item.append(swatch, document.createTextNode(label)); legend.append(item);
+    }
+    const note = document.createElement('p'); note.className = 'hint';
+    note.textContent = 'Use the Tajweed button below Teacher to show or hide colours. Colours are a reading guide; they do not assess your recitation.';
+    const status = document.createElement('p'); status.id = 'tajweed-colors-status'; status.className = 'hint';
+    status.setAttribute('role', 'status'); status.textContent = 'Preparing Tajweed colours…';
+    colours.append(legend, note, status); section('Tajweed colours', colours);
+  }
   // Keep audio status available to assistive technology without a settings block.
   const teacherStatus = document.createElement('p');
   teacherStatus.id = 'teacher-status'; teacherStatus.className = 'sr-only';
@@ -55,7 +90,8 @@ function setupBookLayout() {
   const teacherToggle = control('teacher-enabled', 'Turn Teacher on',
     `<span id="teacher-icon-on" hidden>${teacherSymbol(false)}</span><span id="teacher-icon-off">${teacherSymbol(true)}</span>`);
   teacherToggle.setAttribute('aria-pressed', 'false');
-  const teacherHelp = 'When Teacher is on, a three-second quiet pause plays the next word. If a word is flagged as a possible mistake, Teacher recites it correctly so you can listen and try again.';
+  const pauseWords = document.documentElement.dataset.teacherPauseWords === '3' ? 'up to the next three words' : 'the next word';
+  const teacherHelp = `When Teacher is on, a five-second quiet pause plays ${pauseWords}. If a word is flagged as a possible mistake, Teacher recites that one word correctly so you can listen and try again.`;
   teacherToggle.dataset.help = teacherHelp;
   teacherToggle.removeAttribute('title'); // Use one styled tooltip, without a second native bubble.
   const teacherTooltip = document.createElement('span');
@@ -63,6 +99,13 @@ function setupBookLayout() {
   teacherTooltip.setAttribute('role', 'tooltip'); teacherTooltip.textContent = teacherHelp;
   teacherToggle.append(teacherTooltip);
   teacherToggle.setAttribute('aria-describedby', teacherTooltip.id);
+  const tajweedToggle = tajweedColoursEnabled ? control('tajweed-colors-toggle', 'Show Tajweed colours',
+    '<svg class="tajweed-colour-symbol" width="28" height="28" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8C11 5 7 5 3 6v19c4-1 8-1 13 2 5-3 9-3 13-2V6c-4-1-8-1-13 2Z" fill="var(--tajweed-icon-paper)" stroke="var(--tajweed-icon-line)" stroke-width="1.6"/><path d="M16 8v19" stroke="var(--tajweed-icon-line)" stroke-width="1.4"/><path class="tajweed-icon-madd" d="M6 11c3-1 5 0 7 1m-7 4c2-.5 4 0 7 1" stroke-width="2"/><path class="tajweed-icon-ghunnah" d="M20 11c2-1 4-1 6-1m-6 5c2-1 4-1 6-1" stroke-width="2"/><path class="tajweed-icon-qalqalah" d="M6 21c2-.5 4 0 7 1m7-2c2-1 4-1 6-1" stroke-width="2"/></svg>') : null;
+  if (tajweedToggle) {
+    tajweedToggle.setAttribute('aria-pressed', 'false');
+    tajweedToggle.setAttribute('aria-describedby', 'tajweed-colors-status');
+    tajweedToggle.disabled = true;
+  }
   const searchButton = control('book-search', 'Find a verse by voice', svg('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>'));
   const menu = control('book-menu', 'Open reading settings', svg('<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--card)"/><circle cx="15" cy="12" r="2" fill="var(--card)"/><circle cx="9" cy="18" r="2" fill="var(--card)"/>'));
   for (const button of [searchButton, menu]) {
@@ -73,7 +116,9 @@ function setupBookLayout() {
   searchButton.setAttribute('aria-controls', 'voice-dialog');
   searchButton.disabled = true;
   record.classList.add('book-control'); visibility.classList.add('book-control');
-  recorder.append(record, teacherToggle, visibility, searchButton, menu);
+  recorder.append(record, teacherToggle);
+  if (tajweedToggle) recorder.append(tajweedToggle);
+  recorder.append(visibility, searchButton, menu);
   // Browser zoom, sidebars and font size all change the available gutter.
   // Measure the centered page instead of assigning a desktop breakpoint.
   const reader = document.querySelector('.reader');

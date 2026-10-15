@@ -1,14 +1,14 @@
 // Increment with every delivered change; keep index.html's badge in sync.
-const VERSION = 'V14';
+const VERSION = 'V28';
 const PREFIX = `hafizassist-shell:${self.registration.scope}:`;
 // Numbering restarted at the user's request. Keep this cache series distinct
 // from the original V1 so an old open tab cannot receive a mixed app shell.
 const SHELL = PREFIX + 'series2:' + VERSION;
 const url = path => new URL(path, self.registration.scope).href;
 const FILES = [
-  'index.html', 'mobile.html', 'test.html', 'src/book.js', 'src/book.css', 'src/entry.js', 'favicon.svg', 'src/app.js', 'src/alignment.js', 'src/recognition-boundary.js', 'src/teacher-mode.js', 'src/teacher-voices.js', 'src/teacher-activity.js', 'src/teacher-voicing.js', 'src/madd.js', 'src/debug.js', 'src/word-info.js',
+  'index.html', 'mobile.html', 'test.html', 'test2.html', 'src/book.js', 'src/book.css', 'src/entry.js', 'src/mobile-page-swipe.js', 'favicon.svg', 'src/app.js', 'src/alignment.js', 'src/recognition-boundary.js', 'src/teacher-mode.js', 'src/teacher-retry.js', 'src/teacher-voices.js', 'src/teacher-qua.js', 'data/teacher-qua/catalog.json', 'src/teacher-activity.js', 'src/teacher-voicing.js', 'src/madd.js', 'src/tajweed-timing.js', 'src/tajweed-log.js', 'src/vowel-feedback.js', 'src/debug.js', 'src/word-info.js',
   'src/offline.js', 'src/style.css', 'src/voice-search-worker.js', 'data/quran.json', 'data/HafsSmart.ttf', 'data/AmiriQuran-Regular.ttf',
-  'data/mushaf-layout.json', 'data/tajweed-words.json', 'assets/bismillah.png',
+  'data/mushaf-layout.json', 'data/tajweed-words.json', 'data/tajweed-colors.json', 'src/tajweed-colors.js', 'assets/bismillah.png',
   'recognizer-worker.js', 'audio-worklet.js', 'models/tokens.txt', 'model-config.json',
   'vendor/sherpa-onnx-asr.js', 'vendor/sherpa-onnx-wasm-main-asr.js',
   'vendor/sherpa-onnx-wasm-main-asr.wasm',
@@ -52,26 +52,27 @@ self.addEventListener('fetch', event => {
   const isHome = request.mode === 'navigate' && [url(''), url('index.html'), url('recite/'), url('recite')].includes(path);
   const isMobile = request.mode === 'navigate' && [url('mobile.html'), url('mobile')].includes(path);
   const isBook = request.mode === 'navigate' && [url('test.html'), url('test')].includes(path);
+  const isQua = request.mode === 'navigate' && [url('test2.html'), url('test2')].includes(path);
   if (isHome && [url('recite/'), url('recite')].includes(path)) {
     // Keep relative app URLs rooted correctly, including during offline visits.
     event.respondWith(Response.redirect(url(''), 302));
     return;
   }
-  const key = isHome ? url('index.html') : isMobile ? url('mobile.html') : isBook ? url('test.html') : path;
+  const key = isHome ? url('index.html') : isMobile ? url('mobile.html') : isBook ? url('test.html') : isQua ? url('test2.html') : path;
   if (!fileSet.has(key)) return; // The recognizer owns its separate model cache.
   event.respondWith((async () => {
     let cache;
     try {
       cache = await caches.open(SHELL);
       const saved = await cache.match(key);
-      if (saved?.ok) return isHome || isMobile || isBook ? navigationResponse(saved) : saved;
+      if (saved?.ok) return isHome || isMobile || isBook || isQua ? navigationResponse(saved) : saved;
     } catch (error) { console.warn('Offline cache unavailable; loading from network.', error); }
     const response = await fetch(new Request(isHome ? url('') : key, { cache: 'reload' }));
     if (response.ok && cache) {
       try { await cache.put(key, response.clone()); }
       catch (error) { console.warn('Could not save this response offline.', error); }
     }
-    return isHome || isMobile || isBook ? navigationResponse(response) : response;
+    return isHome || isMobile || isBook || isQua ? navigationResponse(response) : response;
   })());
 });
 self.addEventListener('message', event => {

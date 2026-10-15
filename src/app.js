@@ -3,9 +3,13 @@ import { setupOffline, refreshOfflineStatus } from './offline.js';
 import { createDebugPanel } from './debug.js';
 import { createWordInfo, wordRules, referenceWords } from './word-info.js';
 import { createMaddMonitor } from './madd.js';
+import { createTajweedLog } from './tajweed-log.js';
+import { createTajweedColors } from './tajweed-colors.js';
 import { captureRecognitionBoundary, locateRecognitionBoundary } from './recognition-boundary.js';
 import { createTeacherMode, teacherAudioReference } from './teacher-mode.js';
 import { createTeacherActivity } from './teacher-activity.js';
+import { createTeacherRetry, preserveReview } from './teacher-retry.js';
+import { setupMobilePageSwipe } from './mobile-page-swipe.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
@@ -15,6 +19,8 @@ const juzNames = ['الأول', 'الثاني', 'الثالث', 'الرابع', 
   'السابع والعشرون', 'الثامن والعشرون', 'التاسع والعشرون', 'الثلاثون'];
 const bookView = document.body.classList.contains('book-view');
 const mobileView = document.documentElement.dataset.layout === 'mobile';
+const teacherRetryEnabled = document.documentElement.dataset.teacherRetry === 'word';
+const teacherRetry = createTeacherRetry(teacherRetryEnabled);
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
 let segmentCarry = '';
@@ -22,7 +28,14 @@ let alignmentAnchor = null;
 let pageBoundary = null;
 let reviewDetails = [], completedMatched = 0, completedReview = 0, completedPages = 0, firstPracticePage = 1;
 const maddEnabled = document.documentElement.dataset.maddTiming === 'experimental';
-const madd = createMaddMonitor(maddEnabled);
+const tajweedReviewEnabled = document.documentElement.dataset.tajweedReview === 'experimental';
+const tajweedColors = createTajweedColors(document.documentElement.dataset.tajweedColors === 'preview');
+const tajweedLog = tajweedReviewEnabled ? createTajweedLog() : null;
+const madd = createMaddMonitor(maddEnabled, {
+  reviewEnabled: tajweedReviewEnabled,
+  getSpeed: () => $('tajweed-speed')?.value || 'normal',
+  onDiagnostic: event => tajweedLog?.record(event),
+});
 const wordInfo = createWordInfo(index => {
   const recoveryIndex = words.findIndex(word => word.accessible === reviewDetails[index]?.recoveryWord);
   const recoveryElement = elements[recoveryIndex];
@@ -42,6 +55,7 @@ let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
 let scrollFrame;
 let mobileAlignmentPending = false;
+let mobileAlignmentFrame, mobileReadingStart;
 let micNoticeTimer, micNoticeExpiresAt = 0, pendingMicNotice = '';
 function hideMicNotice() {
   clearTimeout(micNoticeTimer); pendingMicNotice = ''; micNoticeExpiresAt = 0;
@@ -91,6 +105,31 @@ const teacher = createTeacherMode({
     audioAt: audioDiagnostic.receivedAt, captureAt: teacherActivity.captureAt, activity: teacherActivity.diagnostic, pendingChunks }),
   pauseRecognition: pauseForTeacher,
   resumeRecognition: resumeAfterTeacher,
+  onEnabledChange(enabled) { if (!enabled) teacherRetry.clear(); },
+  onCorrectionPlayed({ word, page }) {
+    if (!teacherRetryEnabled || phase !== 'recording' || !teacherGate || page !== currentPage ||
+        !teacherRetry.begin(words, word, currentPage, cursor)) return false;
+    // Capture is still paused and all queued learner results have drained.
+    // Rebase matching on fresh learner audio, keeping the mistake history.
+    cursor = teacherRetry.pending.index; segmentStart = cursor;
+    committed = [...states]; segmentCarry = ''; alignmentAnchor = null; pageBoundary = null;
+    lastTranscript = ''; teacherTranscript = ''; lastFollowedAyah = null;
+    savedThisRun = false;
+    debug.log('teacher-retry', { page: currentPage, target: debugWord(cursor), frontier: teacherRetry.pending.frontier });
+    paint(); followWord(true);
+    return true;
+  },
+  onCorrectionSettled({ word, page, gateReady }) {
+    if (page !== currentPage || !teacherRetry.pending?.awaitingReference) return;
+    if (phase === 'recording' && teacherGate && gateReady) {
+      // A failed or dismissed clip still leaves a fresh recognizer. Let the
+      // learner retry the held word instead of waiting forever for audio.
+      teacherRetry.activate(page, word);
+    } else if (phase === 'recording' && teacher.enabled) {
+      // A failed capture/session barrier cannot safely reuse old speech.
+      void failEngine('Recitation paused because Teacher could not reset listening safely. Start the microphone again to retry this word.');
+    }
+  },
   onStateChange: controls,
 });
 
@@ -112,6 +151,7 @@ function drainCapturedAudio() {
 }
 async function pauseForTeacher(signal) {
   if (phase !== 'recording' || voiceSearch || !worker || !capture) throw new DOMException('Recitation ended.', 'AbortError');
+  const heldCorrection = teacherRetry.pending?.awaitingReference === true;
   teacherGate = true;
   teacherDraining = true;
   wordInfo.hide();
@@ -121,7 +161,9 @@ async function pauseForTeacher(signal) {
     // count. Silence need not find an instant at which the queue is empty.
     await drainCapturedAudio();
   } finally { teacherDraining = false; }
-  if (signal?.aborted || phase !== 'recording' || !worker) throw new DOMException('Recitation ended.', 'AbortError');
+  // Even a dismissed correction must discard the old cumulative speech before
+  // capture resumes. The playback job checks cancellation after this barrier.
+  if ((signal?.aborted && !heldCorrection) || phase !== 'recording' || !worker) throw new DOMException('Recitation ended.', 'AbortError');
   // New session IDs discard old queued ASR results. The start reply is a FIFO
   // barrier: old inference has finished before the reference voice can play.
   sessionId++; pendingChunks = 0; segmentStart = cursor; committed = [...states]; segmentCarry = '';
@@ -195,7 +237,11 @@ function controls() {
   if (mobileView) {
     const reading = phase === 'recording' && !voiceSearch;
     document.body.classList.toggle('mobile-reciting', reading);
-    if (!reading) document.querySelector('main').style.removeProperty('--mobile-reading-tail');
+    if (!reading) {
+      cancelAnimationFrame(mobileAlignmentFrame);
+      mobileAlignmentPending = false; mobileReadingStart = null;
+      document.querySelector('main').style.removeProperty('--mobile-reading-tail');
+    }
   }
   $('voice-open').disabled = !chapter || locked();
   const voiceShortcut = $('book-search');
@@ -262,9 +308,19 @@ function paint() {
   }
   lastFollowedAyah = currentPosition;
   teacher.refresh();
+  if (tajweedReviewEnabled) wordInfo.refresh();
 }
 
 function followWord(force = false) {
+  if (mobileReadingStart) {
+    if (mobileReadingStart.page === currentPage && mobileReadingStart.cursor === cursor && phase === 'recording') {
+      // Font fitting must not replace the mic's first-line alignment with
+      // the usual centered-word scroll before the learner has progressed.
+      if (!mobileAlignmentPending) alignMobileReadingStart(false);
+      return;
+    }
+    mobileReadingStart = null;
+  }
   if (mobileAlignmentPending) return;
   cancelAnimationFrame(scrollFrame);
   scrollFrame = requestAnimationFrame(() => {
@@ -278,25 +334,42 @@ function followWord(force = false) {
     }
   });
 }
-function alignMobileReadingStart() {
+function alignMobileReadingStart(reset = true) {
   if (!mobileView || voiceSearch || phase !== 'recording') return;
+  if (reset) mobileReadingStart = { page: currentPage, cursor };
+  if (!mobileReadingStart || mobileReadingStart.page !== currentPage || mobileReadingStart.cursor !== cursor) return;
   cancelAnimationFrame(scrollFrame);
+  cancelAnimationFrame(mobileAlignmentFrame);
   mobileAlignmentPending = true;
-  scrollFrame = requestAnimationFrame(() => {
-    mobileAlignmentPending = false;
-    if (phase !== 'recording' || voiceSearch || $('voice-dialog').open) return;
-    // Align the first recitable line, including an opening Bismillah, rather
-    // than the page number, Juz label, or decorative surah heading.
-    const firstLine = $('ayahs').querySelector('.bismillah-line, .mushaf-line');
-    if (!firstLine) return;
-    const main = document.querySelector('main');
-    main.style.setProperty('--mobile-reading-tail', '0px');
-    const target = window.scrollY + firstLine.getBoundingClientRect().top;
-    const normalLimit = Math.max(0, document.documentElement.scrollHeight - innerHeight);
-    // Short opening pages also need enough room below them for the browser
-    // to reach this position. Add only the missing scroll distance.
-    main.style.setProperty('--mobile-reading-tail', `${Math.max(0, target - normalLimit)}px`);
-    window.scrollTo({ top: target, behavior: 'instant' });
+  mobileAlignmentFrame = requestAnimationFrame(() => {
+    try {
+      if (phase !== 'recording' || voiceSearch || $('voice-dialog').open || $('book-settings')?.open ||
+          mobileReadingStart?.page !== currentPage || mobileReadingStart?.cursor !== cursor) return;
+      fitMushafLines();
+      // Use only a recitable row, including Bismillah, never either heading.
+      const firstLine = $('ayahs').querySelector('.bismillah-line, .mushaf-line');
+      if (!firstLine) return;
+      const main = document.querySelector('main');
+      main.style.setProperty('--mobile-reading-tail', '0px');
+      const viewportTop = window.visualViewport?.offsetTop || 0;
+      const target = Math.max(0, window.scrollY + firstLine.getBoundingClientRect().top - viewportTop - 8);
+      const normalLimit = Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight);
+      // Give even a short opening page enough document height to reach its
+      // first reading line. Only the document scrolls; the Mushaf stays whole.
+      main.style.setProperty('--mobile-reading-tail', `${Math.max(0, target - normalLimit)}px`);
+      window.scrollTo({ top: target, behavior: 'instant' });
+    } finally { mobileAlignmentPending = false; mobileAlignmentFrame = null; }
+  });
+}
+if (mobileView) {
+  const releaseReadingStart = () => {
+    mobileReadingStart = null; mobileAlignmentPending = false;
+    cancelAnimationFrame(mobileAlignmentFrame);
+  };
+  document.querySelector('.reader').addEventListener('pointerdown', releaseReadingStart, { passive: true });
+  window.addEventListener('wheel', releaseReadingStart, { passive: true });
+  window.visualViewport?.addEventListener('resize', () => {
+    if (mobileReadingStart) alignMobileReadingStart(false);
   });
 }
 function appendWord(row, word, text) {
@@ -305,6 +378,7 @@ function appendWord(row, word, text) {
   button.className = 'word';
   // Reading pages share one Unicode Quran font with Arabic word details.
   button.textContent = bookView ? word.accessible : text;
+  tajweedColors.decorate(button, word);
   button.type = 'button';
   wordInfo.bind(button, index);
   button.addEventListener('click', () => {
@@ -324,6 +398,7 @@ function appendWord(row, word, text) {
 }
 
 function renderPassage(continuing = false) {
+  teacherRetry.clear();
   teacher.cancel({ reset: !continuing, preserveCorrection: continuing });
   wordInfo.hide();
   $('ayahs').replaceChildren(); words = []; elements = [];
@@ -467,6 +542,7 @@ function fontLayoutReady() {
 document.fonts.ready.then(fontLayoutReady);
 document.fonts.addEventListener('loadingdone', fontLayoutReady);
 function resetSession() {
+  teacherRetry.clear();
   teacher.cancel({ reset: true });
   madd.clear();
   pageBoundary = null;
@@ -565,7 +641,12 @@ function createWorker() {
       return;
     }
     if (data.sessionId !== sessionId) return;
-    if (data.type === 'started') { startResolve?.(); startResolve = null; }
+    if (data.type === 'started') {
+      // Restarting the mic after an interrupted correction supplies fresh
+      // audio too. A Teacher gate releases its own hold when the job settles.
+      if (!teacherGate) teacherRetry.activate(currentPage);
+      startResolve?.(); startResolve = null;
+    }
     if (data.type === 'ack') {
       pendingChunks = Math.max(0, pendingChunks - 1);
       if (!pendingChunks) { teacherDrainResolve?.(); teacherDrainResolve = null; }
@@ -597,7 +678,23 @@ function createWorker() {
     if (data.type === 'finished') { finishResolve?.(); finishResolve = null; }
   };
 }
+function commitRecognitionResult(result, data) {
+  const saved = teacherRetryEnabled ? preserveReview(states[result.index], reviewDetails[result.index], result) : result;
+  states[result.index] = saved.state; reviewDetails[result.index] = saved.detail;
+  if (tajweedLog && result.detail?.vowelChanges?.length) tajweedLog.record({ kind: 'vowel',
+    page: currentPage, index: result.index, sessionId: data.sessionId, segment: data.timingSegment,
+    word: words[result.index].accessible, surah: words[result.index].surah, ayah: words[result.index].ayah,
+    status: 'review', reason: result.detail.reason, expectedPhoneme: words[result.index].phoneme,
+    recognizedPhoneme: result.detail.heard, changes: result.detail.vowelChanges });
+}
+
 function handleRecognition(data) {
+  if (teacherRetry.pending?.awaitingReference) {
+    // Keep processing worker acknowledgements outside this handler so the
+    // capture barrier can drain. These queued hypotheses cannot pass the error.
+    debug.log('teacher-hold-recognition', { sessionId, page: currentPage, cursor });
+    return;
+  }
   while (true) {
 
       lastRecognitionAt = Date.now(); lastTranscript = data.text.slice(-6000);
@@ -627,23 +724,59 @@ function handleRecognition(data) {
       const inputOffset = boundary ?? pageOffset ?? 0;
       const inputStart = boundary === null ? segmentStart : cursor;
       const recoveryEnabled = Date.now() - lastAdvanceAt >= 1800 && heard.length - inputOffset >= 8;
-      const match = alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final,
+      const retryTarget = teacherRetry.pending;
+      const retryMatch = retryTarget?.page === currentPage
+        ? teacherRetry.align(words, heard.slice(inputOffset), 'balanced', data.final,
+          document.documentElement.dataset.vowelReview === 'experimental',
+          { settled: data.settled === true, postVowels: tajweedReviewEnabled }) : null;
+      const match = retryMatch || alignSegment(words, inputStart, heard.slice(inputOffset), 'balanced', data.final,
         document.documentElement.dataset.vowelReview === 'experimental',
-        { settled: data.settled === true, recover: recoveryEnabled });
+        { settled: data.settled === true, recover: recoveryEnabled, postVowels: tajweedReviewEnabled });
       const matchingMs = performance.now() - matchingBegan;
-      if (maddEnabled) madd.observe(data, words, match.diagnostic.alignments, inputOffset, segmentCarry, currentPage);
+      const firstReview = teacherRetryEnabled && teacher.enabled && phase === 'recording' && match.cursor >= cursor
+        ? match.results.find(result => result.index >= cursorBefore && result.state === 'review') : null;
+      if (firstReview) {
+        const retained = match.results.filter(result => result.index >= cursorBefore && result.index <= firstReview.index)
+          .map(result => {
+            if (result.index !== firstReview.index || !result.detail?.recoveryWord) return result;
+            const { recoveryWord, ...detail } = result.detail;
+            return { ...result, detail: { ...detail, reason: 'No confident phoneme match. Teacher is helping with this word.' } };
+          });
+        // Do not commit this hypothesis's later words or retain its transcript
+        // tail. Recognition restarts at the error for the learner's own retry.
+        for (const result of retained) commitRecognitionResult(result, data);
+        teacherRetry.begin(words, words[firstReview.index], currentPage, firstReview.index + 1, { awaitingReference: true });
+        cursor = firstReview.index; segmentStart = cursor; committed = [...states]; segmentCarry = '';
+        alignmentAnchor = null; pageBoundary = null; savedThisRun = false;
+        if (cursor > cursorBefore) lastAdvanceAt = Date.now();
+        if (maddEnabled) {
+          const prefix = match.diagnostic.alignments.filter(item => item.index + item.merged <= firstReview.index + 1);
+          madd.observe(data, words, prefix, inputOffset, carryBefore, currentPage,
+            { ...match.diagnostic, alignments: prefix, blockedIndex: cursor, reason: 'teacher-correction-hold' });
+        }
+        teacher.observe(retained.map(result => ({ ...result, word: teacherWord(words[result.index]) })), currentPage);
+        debug.log('teacher-error-hold', { sessionId, page: currentPage, cursorBefore, cursorAfter: cursor,
+          discardedAfter: firstReview.index, candidateCursor: match.cursor });
+        paint();
+        return;
+      }
+      if (maddEnabled) madd.observe(data, words, match.diagnostic.alignments, inputOffset, segmentCarry, currentPage, match.diagnostic);
       // CTC can revise an earlier part of its cumulative hypothesis. Once a
       // word has advanced the visible cursor, that revision must not rewind
       // the reading position or erase completed highlights.
       const caughtUp = match.cursor >= cursor;
+      const retryResult = retryMatch ? teacherRetry.accept(match.results[0], currentPage, cursor) : null;
+      if (retryResult?.accepted) teacher.completeRetry?.(teacherWord(words[retryResult.target.index]), currentPage);
       if (caughtUp) {
         for (const result of match.results) {
-          if (result.index >= cursor) { states[result.index] = result.state; reviewDetails[result.index] = result.detail; }
+          if (result.index >= cursor) {
+            commitRecognitionResult(result, data);
+          }
         }
-        cursor = match.cursor;
+        cursor = retryResult?.nextCursor ?? match.cursor;
       }
-      if (cursor > cursorBefore) {
-        lastAdvanceAt = Date.now();
+      if (cursor > cursorBefore || retryMatch && match.consumed > 0) {
+        if (cursor > cursorBefore) lastAdvanceAt = Date.now();
         alignmentAnchor = { heard, offset: inputOffset + match.consumed, cursor,
           audio: captureRecognitionBoundary(data, inputOffset + match.consumed, segmentCarry) };
       }
@@ -662,7 +795,8 @@ function handleRecognition(data) {
         sinceAdvanceMs: lastAdvanceAt ? Date.now() - lastAdvanceAt : null,
         diagnostic: match.diagnostic,
       });
-      if (cursor >= words.length && phase === 'recording') {
+      if (cursor >= words.length && phase === 'recording' && !teacherRetry.pending &&
+          !(teacherRetryEnabled && teacher.correctionPending)) {
         const nextOffset = inputOffset + match.consumed;
         completedMatched += states.filter(s => s === 'matched').length;
         completedReview += states.filter(s => s === 'review').length;
@@ -677,6 +811,12 @@ function handleRecognition(data) {
         alignmentAnchor = { heard, offset: nextOffset, cursor: 0, audio: audioBoundary };
         pageBoundary = { heard, offset: nextOffset, audio: audioBoundary };
         status(`Listening · continued to page ${currentPage}.`);
+        continue;
+      }
+      // A correct retry can leave newly spoken words in the same result.
+      // Continue at the saved frontier, without replaying completed audio.
+      if (retryResult?.accepted && match.heard.length > match.consumed && cursor < words.length) {
+        paint();
         continue;
       }
       if (data.final) {
@@ -929,6 +1069,23 @@ $('model-file').addEventListener('change', event => { const file = event.target.
 $('reset').addEventListener('click', async () => { await stopRecording(); resetSession(); });
 $('previous-page').addEventListener('click', () => openPage(currentPage - 1));
 $('next-page').addEventListener('click', () => openPage(currentPage + 1));
+if (mobileView) {
+  const canSwipePage = direction => Boolean(chapter) && !locked() && !teacher.busy && !voiceSearch &&
+    !$('voice-dialog').open && !$('book-settings')?.open && !document.body.classList.contains('teacher-panel-open') &&
+    currentPage + direction >= 1 && currentPage + direction <= 604;
+  const stopSwipes = setupMobilePageSwipe({
+    reader: document.querySelector('.reader'),
+    canTurn: canSwipePage,
+    onSwipeStart: () => wordInfo.hide(),
+    turnPage(direction) {
+      if (!canSwipePage(direction)) return false;
+      const page = currentPage + direction;
+      openPage(page);
+      return currentPage === page;
+    },
+  });
+  window.addEventListener('pagehide', event => { if (!event.persisted) stopSwipes(); });
+}
 $('search-form').addEventListener('submit', searchPassage);
 $('surah').addEventListener('change', () => {
   if (locked()) return;
@@ -987,4 +1144,11 @@ async function init() {
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }
 void init();
+// Colour data loads independently so unavailable annotations cannot hold up
+// Quran reading. If it arrives later, decorate the currently displayed page.
+void tajweedColors.load().then(loaded => {
+  if (!loaded) return;
+  elements.forEach((button, index) => tajweedColors.decorate(button, words[index]));
+  if (elements.length) fitMushafLines();
+});
 void setupOffline();

@@ -1,8 +1,11 @@
+import { timingRules } from './tajweed-timing.js';
+
 // Rule positions in schema 2 refer to characters in aya_text, not phonemes.
 export function wordRules(verse, names) {
   return [...verse.aya_text.matchAll(/\S+/gu)].map(token => (verse.rules || [])
     .filter(([position]) => position >= token.index && position < token.index + token[0].length)
-    .map(([, id, length]) => ({ id, en: names[id]?.en || `Rule ${id}`, ar: names[id]?.ar || '',
+    .map(([position, id, length]) => ({ id, position: position - token.index, letter: verse.aya_text[position],
+      en: names[id]?.en || `Rule ${id}`, ar: names[id]?.ar || '',
       beats: id >= 1 && id <= 7 ? length : null })));
 }
 
@@ -39,11 +42,11 @@ export function createWordInfo(getInfo) {
   tip.id = 'word-info'; tip.setAttribute('role', 'dialog');
   tip.setAttribute('aria-modal', 'false'); tip.setAttribute('aria-labelledby', 'word-info-title');
   tip.hidden = true; document.body.append(tip);
-  let active, closeTimer;
+  let active, closeTimer, refreshActive, activeSignature;
   function hide() {
     clearTimeout(closeTimer);
     active?.setAttribute('aria-expanded', 'false');
-    active = null; tip.hidden = true;
+    active = null; refreshActive = null; activeSignature = null; tip.hidden = true;
   }
   function closeAndReturn() {
     const button = active;
@@ -120,15 +123,23 @@ export function createWordInfo(getInfo) {
     button.setAttribute('aria-haspopup', 'dialog');
     button.setAttribute('aria-controls', tip.id);
     button.setAttribute('aria-expanded', 'false');
-    function show() {
+    function show(force = false) {
       if (suppressFocus) return;
-      clearTimeout(closeTimer);
-      if (active === button && !tip.hidden) return;
+      if (!force) clearTimeout(closeTimer);
+      if (active === button && !tip.hidden && !force) return;
+      const info = getInfo(index);
+      const { word, state, detail, hidden, recoveryDisplay, madd } = info;
+      const signature = JSON.stringify({ state, detail, hidden, madd });
+      if (force && signature === activeSignature) return;
+      // Do not remove a focused reference-rules control during live updates.
+      if (force && tip.contains(document.activeElement)) return;
+      const referenceOpen = force && tip.querySelector('details')?.open;
+      const scrollTop = force ? tip.scrollTop : 0;
       if (bookLayout) active?.setAttribute('aria-expanded', 'false');
       else hide();
       active = button; button.setAttribute('aria-expanded', 'true');
+      activeSignature = signature; refreshActive = () => show(true);
       tip.replaceChildren();
-      const { word, state, detail, hidden, recoveryDisplay, madd } = getInfo(index);
       tip.classList.toggle('is-review', !hidden && state === 'review');
       const header = document.createElement('div'); header.className = 'word-info-heading';
       // Hafs uses display glyphs; reuse the rendered word, not its Unicode transcription.
@@ -157,7 +168,12 @@ export function createWordInfo(getInfo) {
         if (vowelReview) {
           const names = { 'َ': 'Fatha · a (◌َ)', 'ُ': 'Damma · u (◌ُ)', 'ِ': 'Kasra · i (◌ِ)' };
           for (const change of detail.vowelChanges) {
-            tip.append(field('Expected vowel', names[change.expected]), field('Detected vowel', names[change.detected]));
+            if (change.type) tip.append(field('Vowel check', change.type === 'omission' ? 'Possible missing vowel' :
+              change.type === 'addition' ? 'Possible extra vowel' : 'Possible changed vowel'));
+            tip.append(field('Expected vowel', names[change.expected] || 'No short vowel'),
+              field('Detected vowel', names[change.detected] || 'No short vowel detected'));
+            if (change.expectedPhoneme && change.detectedPhoneme)
+              tip.append(field('Expected sound', change.expectedPhoneme, true), field('Recognized sound', change.detectedPhoneme, true));
           }
         }
         if (detail?.heard) {
@@ -168,11 +184,41 @@ export function createWordInfo(getInfo) {
         if (!bookLayout) tip.append(textElement('p', 'Recognition can be wrong. This flag does not confirm a specific pronunciation or Tajweed mistake.', 'word-info-note'));
         const details = document.createElement('details');
         details.append(textElement('summary', 'Tajweed rules'), referenceContent(word));
+        if (referenceOpen) details.open = true;
         details.addEventListener('toggle', position); tip.append(details);
       } else {
         tip.append(referenceContent(word));
       }
-      if (!hidden && document.documentElement.dataset.maddTiming === 'experimental') {
+      if (!hidden && document.documentElement.dataset.tajweedReview === 'experimental') {
+        const review = madd?.timingReview;
+        const assessments = review?.assessments || [];
+        if (assessments.length || timingRules(word).length) {
+          const section = document.createElement('section'); section.className = 'word-info-madd word-info-timing-preview';
+          section.append(textElement('strong', 'Tajweed timing · Preview'));
+          const statuses = { underheld: 'Possibly too short', overheld: 'Possibly too long',
+            'within-range': 'Within preview range', unavailable: 'Not assessed' };
+          for (const assessment of assessments) {
+            const label = `${assessment.name} · ${statuses[assessment.status] || 'Not assessed'}`;
+            const measured = Number.isFinite(assessment.estimatedMs) && assessment.status !== 'unavailable';
+            const counts = assessment.allowedCounts?.length ? assessment.allowedCounts.join(' / ') : assessment.referenceCounts;
+            const reference = assessment.kind === 'shaddah' || !counts ? '' : ` · Reference ${counts} harakat`;
+            const value = measured ? `Estimated ${(assessment.estimatedMs / 1000).toFixed(2)} s${reference}` :
+              (assessment.reason || 'Usable timing is unavailable.') + reference;
+            section.append(field(label, value));
+            if (measured) section.append(textElement('p', assessment.status === 'underheld' ? 'Try holding this sound longer.' :
+              assessment.status === 'overheld' ? 'Try a shorter hold.' : 'No timing adjustment suggested.', 'word-info-note'));
+          }
+          if (!assessments.length) section.append(field(state ? 'Not assessed' : 'Awaiting recitation',
+            state ? madd?.timingUnavailable || madd?.note || 'No isolated recognition timing is available for this word.' :
+              'Timing appears after this word is recognized.'));
+          if (assessments.length) {
+            const pace = madd?.speed === 'fast' ? 'Fast' : madd?.speed === 'slow' ? 'Slow' : 'Normal';
+            section.append(textElement('p', `CTC timing estimate · ${pace} pace`, 'word-info-note'));
+          }
+          // Keep the preview visible ahead of the longer reference-rule list.
+          tip.insertBefore(section, tip.querySelector(':scope > .word-info-reference, :scope > details'));
+        }
+      } else if (!hidden && document.documentElement.dataset.maddTiming === 'experimental') {
         const rules = (word.rules || []).filter(rule => rule.id >= 1 && rule.id <= 7);
         if (rules.length) {
           const section = document.createElement('section'); section.className = 'word-info-madd';
@@ -195,11 +241,12 @@ export function createWordInfo(getInfo) {
       }
       tip.style.left = '8px';
       tip.hidden = false; position();
+      tip.scrollTop = scrollTop;
       if (bookLayout) requestAnimationFrame(position);
     }
-    button.addEventListener('mouseenter', show);
-    button.addEventListener('focus', show);
-    button.addEventListener('click', show);
+    button.addEventListener('mouseenter', () => show());
+    button.addEventListener('focus', () => show());
+    button.addEventListener('click', () => show());
     button.addEventListener('mouseleave', scheduleHide);
     button.addEventListener('blur', scheduleHide);
     button.addEventListener('keydown', event => {
@@ -227,5 +274,5 @@ export function createWordInfo(getInfo) {
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && active) { event.preventDefault(); closeAndReturn(); }
   });
-  return { bind, hide };
+  return { bind, hide, refresh: () => { if (!tip.hidden) refreshActive?.(); } };
 }

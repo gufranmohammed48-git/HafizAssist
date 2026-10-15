@@ -1,5 +1,6 @@
 // Shared Teacher voice choices on the desktop, mobile, and test pages. Recognition continues
 // to use the same local model; these sources are prerecorded Quran audio.
+import { createTeacherQua } from './teacher-qua.js';
 const SELECTION_KEY = 'recitealquran-teacher-voice-preview';
 const TIMING_CACHE = 'recitealquran-teacher-timings-v1';
 const DEFAULT_VOICE = 'husary-murattal';
@@ -103,6 +104,7 @@ function isolatedWordTiming(data, reference) {
 
 export function createTeacherVoices({ onChange, getEnabled, onToggle, onOpen } = {}) {
   if (document.documentElement.dataset.teacherVoices !== 'preview') return null;
+  const qua = document.documentElement.dataset.teacherTimings === 'qua' ? createTeacherQua() : null;
   const trigger = document.getElementById('teacher-enabled');
   if (!trigger) return null;
   let selected = DEFAULT_VOICE;
@@ -121,7 +123,7 @@ export function createTeacherVoices({ onChange, getEnabled, onToggle, onOpen } =
   close.setAttribute('aria-label', 'Close Teacher options'); close.textContent = '×';
   header.append(heading, close);
   const help = document.createElement('p'); help.className = 'teacher-voices-help'; help.textContent = trigger.dataset.help ||
-    'Teacher helps after a three-second quiet pause and recites words flagged as possible mistakes so you can listen and try again.';
+    'Teacher helps after a five-second quiet pause and recites words flagged as possible mistakes so you can listen and try again.';
   const enableRow = document.createElement('div'); enableRow.className = 'teacher-voices-enable-row';
   const enableLabel = document.createElement('span'); enableLabel.textContent = 'Teacher';
   const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'teacher-voices-toggle';
@@ -158,7 +160,13 @@ export function createTeacherVoices({ onChange, getEnabled, onToggle, onOpen } =
   status.textContent = document.getElementById('teacher-status')?.textContent || '';
   const voiceForSelection = () => VOICES.find(voice => voice.id === selected);
   function defaultNotice() {
-    notice.textContent = 'Teacher plays one word. If this voice has no usable word timing, it uses a clearly labelled Quran.com word reference.';
+    const help = document.documentElement.dataset.teacherPauseWords === '3'
+      ? 'Pause help plays up to three words; corrections play one word.' : 'Teacher plays one word.';
+    if (qua) {
+      notice.textContent = `${help} This trial uses QUA letter boundaries. Conflicting boundaries use the original timing for your chosen voice, then a labelled Quran.com word reference if needed. Streamed recordings need a connection.`;
+      return;
+    }
+    notice.textContent = `${help} If this voice has no usable word timing, it uses a clearly labelled Quran.com word reference.`;
   }
   defaultNotice();
   panel.append(header, help, enableRow, instruction, choices, notice, status); document.body.append(panel);
@@ -304,6 +312,17 @@ export function createTeacherVoices({ onChange, getEnabled, onToggle, onOpen } =
       const voice = voiceForSelection();
       const { surah, ayah, position } = reference;
       if (![surah, ayah, position].every(value => Number.isInteger(value) && value > 0)) throw new Error('The word location is unavailable for this Teacher voice.');
+      if (qua) {
+        const resolved = await qua.resolve(reference, voice, signal);
+        checkAbort(signal);
+        if (selected !== voice.id) throw abortError();
+        if (resolved) {
+          if (!quiet) notice.textContent = `Teacher reads one word in ${voice.name} (${voice.style}) using QUA letter boundaries.`;
+          return resolved;
+        }
+        // Connected letters or missing bounds cannot give an isolated QUA
+        // clip. Try our original timing for the SAME reciter first.
+      }
       const path = `${String(surah).padStart(3, '0')}${String(ayah).padStart(3, '0')}.mp3`;
       const resolved = { ...reference, url: `${AUDIO_BASE}${voice.folder}/${path}`, voiceId: voice.id, voiceName: voice.name, style: voice.style };
       const data = await getTimings(voice, signal);
@@ -311,11 +330,53 @@ export function createTeacherVoices({ onChange, getEnabled, onToggle, onOpen } =
       if (selected !== voice.id) throw abortError();
       const timing = isolatedWordTiming(data, reference);
       if (timing) {
-        if (!quiet) notice.textContent = `Teacher reads one word in ${voice.name} (${voice.style}).`;
+        if (!quiet) notice.textContent = `Teacher reads one word in ${voice.name} (${voice.style})${qua ? ' using the original word timing; QUA boundaries were unavailable or conflicting' : ''}.`;
         return { ...resolved, combined: reference.timingPosition !== reference.position ? false : reference.combined,
-          format: 'word', start: timing[2] / 1000, end: timing[3] / 1000 };
+          format: 'word', start: timing[2] / 1000, end: timing[3] / 1000,
+          ...(qua ? { timingProvider: 'legacy', quaFallback: true } : {}) };
       }
       return this.fallback(reference, undefined, { quiet });
+    },
+    async resolvePhrase(references, signal, { quiet = false } = {}) {
+      checkAbort(signal);
+      if (!Array.isArray(references) || references.length < 2 || references.length > 3) return null;
+      const voice = voiceForSelection();
+      // QUA is mapped to the original display words. Its split-word indices
+      // must not pass through the merged Quran.com/legacy timing guard below.
+      if (qua) {
+        const resolved = await qua.resolvePhrase(references, voice, signal);
+        checkAbort(signal);
+        if (selected !== voice.id) throw abortError();
+        if (resolved) {
+          if (!quiet) notice.textContent = `Teacher reads ${references.length} words in ${voice.name} (${voice.style}) using QUA letter boundaries.`;
+          return resolved;
+        }
+      }
+      const first = references[0];
+      if (!first || !Number.isInteger(first.timingWordCount) || first.timingWordCount < 1) return null;
+      const firstPosition = first.timingPosition ?? first.position;
+      // Only join exact consecutive source words in the same ayah. Quran.com
+      // combined words can share an index; those must retain individual replay.
+      // The separate 37:130 timingPosition indices remain usable here.
+      if (!references.every((reference, index) => reference &&
+        [reference.surah, reference.ayah, reference.position].every(value => Number.isInteger(value) && value > 0) &&
+        reference.surah === first.surah && reference.ayah === first.ayah &&
+        reference.timingWordCount === first.timingWordCount &&
+        Number.isInteger(reference.timingPosition ?? reference.position) &&
+        (reference.timingPosition ?? reference.position) === firstPosition + index)) return null;
+      const data = await getTimings(voice, signal);
+      checkAbort(signal);
+      if (selected !== voice.id) throw abortError();
+      const spans = references.map(reference => isolatedWordTiming(data, reference));
+      if (spans.some(span => !span) || spans.some((span, index) => index > 0 && span[2] < spans[index - 1][3])) return null;
+      const path = `${String(first.surah).padStart(3, '0')}${String(first.ayah).padStart(3, '0')}.mp3`;
+      if (!quiet) notice.textContent = `Teacher reads ${references.length} words in ${voice.name} (${voice.style})${qua ? ' using the original word timing; QUA boundaries were unavailable or conflicting' : ''}.`;
+      return { ...first, url: `${AUDIO_BASE}${voice.folder}/${path}`, voiceId: voice.id, voiceName: voice.name, style: voice.style,
+        combined: false, format: 'phrase', phraseWordCount: references.length,
+        endTimingPosition: references[references.length - 1].timingPosition ?? references[references.length - 1].position,
+        start: spans[0][2] / 1000, end: spans[spans.length - 1][3] / 1000,
+        timingSource: data.source, timingSourceFile: data.sourceFile,
+        ...(qua ? { timingProvider: 'legacy', quaFallback: true } : {}) };
     },
   };
 }

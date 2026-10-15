@@ -1,5 +1,6 @@
 // Weighted semi-global alignment adapted from ReciteQuran's matching approach.
 // See licenses/ReciteQuran.txt. Matching locates speech; it does not grade tajweed.
+import { reviewAlignedVowels } from './vowel-feedback.js';
 export function normalize(text) {
   // Preserve repeated phonemes on BOTH sides of word boundaries.
   return text.replace(/[\s\u200e\u200f\u0640\u0686\u06dc\u0619\u06ea]/gu, '')
@@ -83,6 +84,7 @@ function matchWords(references, heard, config, final, diagnostic) {
     if (score > limit || (best && (config.reviewVowels ? score > best.score + 1e-6 : score >= best.score - 1e-6))) continue;
     let i = end, j = n, missingTail = false, reachedSound = false;
     const trace = [];
+    const vowelInsertions = [];
     while (j > 0) {
       const op = back[i * stride + j];
       if (op === 1 || i === 0) {
@@ -94,7 +96,10 @@ function matchWords(references, heard, config, final, diagnostic) {
         if (!reachedSound && cost > config.confusion && !shortVowel(reference[j - 1])) missingTail = true;
         trace.push({ ref: j - 1, heard: heard[i - 1], heardIndex: i - 1, cost, supported: cost <= config.confusion });
         reachedSound = true; i--; j--;
-      } else { i--; }
+      } else {
+        if (config.postVowels) vowelInsertions.push({ boundary: j, heard: heard[i - 1], heardIndex: i - 1 });
+        i--;
+      }
     }
     // Wait for missing core sounds, not for every word at the live frontier.
     if (!final && missingTail && end >= m - 1) { if (diagnostic) diagnostic.rejected.unfinishedTail++; continue; }
@@ -130,7 +135,8 @@ function matchWords(references, heard, config, final, diagnostic) {
     const missingVowels = trace.filter(step => shortVowel(reference[step.ref]) && !step.heard).length;
     // At equal cost prefer an actually heard vowel over dropping the ending.
     if (config.reviewVowels && best && Math.abs(score - best.score) < 1e-6 && missingVowels >= best.missingVowels) continue;
-    const vowelChanges = config.reviewVowels ? trace.filter(step => {
+    const vowelChanges = config.postVowels ? reviewAlignedVowels(references, trace, vowelInsertions)
+      : config.reviewVowels ? trace.filter(step => {
       if (!shortVowel(reference[step.ref]) || !shortVowel(step.heard) || reference[step.ref] === step.heard) return false;
       const preceding = trace.find(previous => previous.ref === step.ref - 1);
       return preceding?.cost === 0 && preceding.heardIndex === step.heardIndex - 1;
@@ -141,8 +147,9 @@ function matchWords(references, heard, config, final, diagnostic) {
   return best;
 }
 export function alignSegment(words, start, transcript, sensitivity, final = false, reviewVowels = false,
-  { settled = false, recover = false } = {}) {
-  const config = { ...(presets[sensitivity] || presets.balanced), reviewVowels, settled };
+  { settled = false, recover = false, postVowels = false } = {}) {
+  const config = { ...(presets[sensitivity] || presets.balanced), reviewVowels, settled,
+    postVowels: Boolean(postVowels && reviewVowels) };
   const heard = normalize(transcript);
   let offset = 0, cursor = start;
   const results = [];
@@ -240,7 +247,10 @@ export function alignSegment(words, start, transcript, sensitivity, final = fals
       const changes = match.vowelChanges.filter(change => change.position >= wordOffset && change.position < wordOffset + length)
         .map(change => ({ ...change, position: change.position - wordOffset }));
       results.push(changes.length ? { index: cursor++, state: 'review', detail: {
-        kind: 'vowel-substitution', reason: 'Possible short-vowel substitution in the recognized sounds.',
+        kind: 'vowel-substitution', reason: config.postVowels
+          ? 'Possible short-vowel difference after matching the base sounds.'
+          : 'Possible short-vowel substitution in the recognized sounds.',
+        ...(config.postVowels ? { vowelFeedback: 'post-match' } : {}),
         vowelChanges: changes, heard: remaining.slice(match.start, match.consumed),
       } } : { index: cursor++, state: 'matched' });
       wordOffset += length;

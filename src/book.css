@@ -8,7 +8,7 @@ body.book-view.dark{background:#0e1712}
 .book-view .header{height:0;padding:0;margin:0}
 .book-view .header .bismillah{display:none}
 .book-view .header .app-version{position:fixed;top:10px;right:10px;z-index:12;background:var(--paper)}
-/* The mobile document keeps its loaded version in markup, without a badge. */
+/* Each layout identifies its loaded version at the far right. */
 .book-view main{max-width:1180px;padding:38px 24px 32px;margin:0 auto}
 .book-view .reader{margin:0 auto;padding:0 28px;border-radius:3px;box-shadow:0 20px 65px #0002,inset 0 0 0 5px var(--paper),inset 0 0 0 6px var(--border);background:linear-gradient(90deg,#00000004,transparent 5%,transparent 95%,#00000005),var(--paper)}
 .book-view .surah-heading{padding:12px 0}
@@ -58,6 +58,10 @@ body.book-view.dark{background:#0e1712}
 #book-settings .history{margin:12px 0;padding:12px}
 #book-settings footer{margin-top:16px}
 .book-view #word-info .word-info-madd{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}
+.book-view #book-settings .tajweed-preview-settings{display:grid;gap:8px}
+.book-view #book-settings .tajweed-preview-settings label{margin:0;font-size:12px;font-weight:600}
+.book-view #book-settings .tajweed-preview-settings .hint{margin:0;line-height:1.6}
+.book-view #word-info .word-info-timing-preview>.word-info-note{margin:4px 0 8px}
 /* Feedback floats over the existing margin; it never resizes the Mushaf. */
 .book-view #teacher-feedback{position:fixed;z-index:14;left:50%;top:12px;translate:-50% 0;width:min(280px,calc(100vw - 28px));max-width:calc(100vw - 28px);box-sizing:border-box;padding:12px 15px 14px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--card) 94%,transparent);color:var(--ink);box-shadow:0 12px 38px #0002;backdrop-filter:blur(12px);opacity:1;scale:1;transform-origin:center;transition:scale 420ms cubic-bezier(.2,.7,.2,1),opacity 420ms ease,display 420ms allow-discrete}
 .book-view #teacher-feedback[data-placement=gutter]{top:50dvh;translate:0 -50%}
@@ -99,6 +103,12 @@ body.book-view.dark{background:#0e1712}
 
 /* Leave the top-row badge space available on the dedicated phone layout. */
 html[data-layout=mobile] .book-view.mobile-reciting main{padding-bottom:calc(32px + var(--mobile-reading-tail,0px))}
+/* Phone pages turn with a horizontal gesture; vertical reading and zoom stay native. */
+html[data-layout=mobile]{overflow-x:clip}
+html[data-layout=mobile] .reader{touch-action:pan-y pinch-zoom;overflow-anchor:none}
+html[data-layout=mobile] .surah-heading .page-navigation :is(#next-page,#previous-page){display:none}
+html[data-layout=mobile] .mobile-page-dragging{cursor:grabbing}
+html[data-layout=mobile] .mobile-page-turning{pointer-events:none}
 
 /* The preview panel reserves the measured toolbar area and leaves the page
    centered. JS delays hidden on close for browsers without display animation. */
@@ -167,6 +177,86 @@ html[data-teacher-voices=preview] .teacher-panel-open #teacher-tooltip{display:n
   .book-view .book-control{transition:none}
   .book-view #teacher-enabled svg{animation:none}
   .book-view #teacher-tooltip{transition:none}
+}
+
+/* Test-page diagnostics stay inside settings and never cover the Mushaf. */
+html[data-tajweed-review=experimental] .tajweed-testing-log{margin-top:8px;border-top:1px solid var(--border);padding-top:10px;font-size:12px}
+html[data-tajweed-review=experimental] .tajweed-testing-log>summary{font-weight:650;cursor:pointer;padding:4px 0}
+html[data-tajweed-review=experimental] .tajweed-log-body{display:grid;gap:10px;padding-top:10px;min-width:0}
+.book-view #book-settings .tajweed-preview-settings .tajweed-log-toggle{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;font-weight:500}
+html[data-tajweed-review=experimental] .tajweed-log-toggle input{width:16px;height:16px;min-width:16px;min-height:16px;margin:0;accent-color:var(--green)}
+html[data-tajweed-review=experimental] .tajweed-log-summary{margin:0;font-size:11px;line-height:1.65;color:var(--muted);overflow-wrap:anywhere}
+html[data-tajweed-review=experimental] .tajweed-log-events{margin:0;padding:0;list-style:none;max-height:240px;overflow:auto;scrollbar-width:thin;display:grid;gap:7px}
+html[data-tajweed-review=experimental] .tajweed-log-events li{padding:7px 8px;border:1px solid var(--border);border-radius:8px;background:var(--paper);line-height:1.5;overflow-wrap:anywhere}
+html[data-tajweed-review=experimental] .tajweed-log-event-label{display:block;unicode-bidi:plaintext}
+html[data-tajweed-review=experimental] .tajweed-log-events small{display:block;margin-top:3px;color:var(--muted);font-size:10px}
+html[data-tajweed-review=experimental] .tajweed-log-actions{display:flex;gap:6px;flex-wrap:wrap}
+html[data-tajweed-review=experimental] .tajweed-log-actions button{padding:6px 9px;font-size:11px;min-height:32px}
+html[data-tajweed-review=experimental] .tajweed-log-message:empty{display:none}
+html[data-tajweed-review=experimental] .tajweed-log-fallback{display:block;box-sizing:border-box;width:100%;font:10px/1.5 monospace;resize:vertical;max-height:220px}
+html[data-tajweed-review=experimental] .tajweed-log-fallback[hidden]{display:none}
+html[data-tajweed-review=experimental] .tajweed-log-retention{font-size:10px;color:var(--muted)}
+
+/* Colour annotations belong to the test-page guide. Keep glyph sizing and
+   word tracking separate from each letter's Tajweed colour. */
+html[data-tajweed-colors=preview] .book-view{--tajweed-madd:#b5293b;--tajweed-ghunnah:#217742;--tajweed-idgham:#815aab;--tajweed-ikhfa:#267680;--tajweed-qalqalah:#2867bc;--tajweed-silent:#6d766e}
+html[data-tajweed-colors=preview] .book-view.dark{--tajweed-madd:#fa9098;--tajweed-ghunnah:#76c48d;--tajweed-idgham:#c5a0eb;--tajweed-ikhfa:#78c9cf;--tajweed-qalqalah:#84b6f8;--tajweed-silent:#a1afa4}
+html[data-tajweed-colors=preview] .word [data-tajweed-rule]{font-family:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=madda_normal],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=madda_permissible],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=madda_obligatory],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=madda_necessary]{color:var(--tajweed-madd)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=ghunnah]{color:var(--tajweed-ghunnah)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=idgham_ghunnah],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=idgham_wo_ghunnah],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=idgham_shafawi],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=idgham_mutajanisayn],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=idgham_mutaqaribayn]{color:var(--tajweed-idgham)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=ikhafa],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=ikhafa_shafawi],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=iqlab]{color:var(--tajweed-ikhfa)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=qalaqah]{color:var(--tajweed-qalqalah)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=ham_wasl],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=laam_shamsiyah],
+html[data-tajweed-colors=preview] .tajweed-colors-on .word [data-tajweed-rule=slnt]{color:var(--tajweed-silent)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word.matched:not(.concealed){color:var(--ink);text-decoration:underline solid;text-decoration-color:var(--green);text-decoration-thickness:1px;text-underline-offset:8px}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word.matched:not(.next):not(.concealed){background:color-mix(in srgb,var(--green) 9%,transparent)}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word.review:not(.concealed){color:var(--ink);text-decoration:underline dotted;text-decoration-color:var(--amber);text-decoration-thickness:2px;text-underline-offset:8px}
+html[data-tajweed-colors=preview] .tajweed-colors-on .word.review:not(.next):not(.concealed){background:color-mix(in srgb,var(--amber) 11%,transparent)}
+html[data-tajweed-colors=preview] .word.concealed [data-tajweed-rule],
+html[data-tajweed-colors=preview] .word.concealed *{color:transparent!important;text-decoration:none!important;text-shadow:none!important}
+/* Keep hidden words blank; ayah numbers remain visible. */
+html[data-hidden-text=blank] .word.concealed::after{content:none}
+html[data-hidden-text=blank] .word.concealed{background:transparent!important;box-shadow:none!important;border-color:transparent!important}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle{--tajweed-icon-line:var(--muted);--tajweed-icon-paper:var(--paper);padding:5px;color:var(--muted)}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-colour-symbol{width:28px;height:28px}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-madd,
+html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-ghunnah,
+html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-qalqalah{stroke:var(--tajweed-icon-line);transition:stroke 220ms ease}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle[aria-pressed=true]{--tajweed-icon-line:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 40%,transparent)}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle[aria-pressed=true] .tajweed-icon-madd{stroke:var(--tajweed-madd)}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle[aria-pressed=true] .tajweed-icon-ghunnah{stroke:var(--tajweed-ghunnah)}
+html[data-tajweed-colors=preview] #tajweed-colors-toggle[aria-pressed=true] .tajweed-icon-qalqalah{stroke:var(--tajweed-qalqalah)}
+html[data-tajweed-colors=preview] .tajweed-colour-settings{display:grid;gap:9px}
+html[data-tajweed-colors=preview] .tajweed-colour-settings .hint{margin:0;font-size:11px;line-height:1.6}
+html[data-tajweed-colors=preview] .tajweed-colour-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;list-style:none;margin:0;padding:0;font-size:11px}
+html[data-tajweed-colors=preview] .tajweed-colour-legend li{display:flex;align-items:center;gap:7px}
+html[data-tajweed-colors=preview] .tajweed-colour-swatch{width:8px;height:8px;border-radius:50%;flex:none;background:var(--tajweed-swatch)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=madd]{--tajweed-swatch:var(--tajweed-madd)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=ghunnah]{--tajweed-swatch:var(--tajweed-ghunnah)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=idgham]{--tajweed-swatch:var(--tajweed-idgham)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=ikhfa]{--tajweed-swatch:var(--tajweed-ikhfa)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=qalqalah]{--tajweed-swatch:var(--tajweed-qalqalah)}
+html[data-tajweed-colors=preview] [data-tajweed-colour=silent]{--tajweed-swatch:var(--tajweed-silent)}
+/* Six 44px controls fit in one row from 366px; smaller viewports use two
+   rows rather than widening or shifting the centered Quran page. */
+@media(max-width:365px){
+  html[data-tajweed-colors=preview] .book-view.book-controls-top .recorder-main{display:grid;grid-template-columns:repeat(3,44px);gap:4px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-madd,
+  html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-ghunnah,
+  html[data-tajweed-colors=preview] #tajweed-colors-toggle .tajweed-icon-qalqalah{transition:none}
 }
 
 
