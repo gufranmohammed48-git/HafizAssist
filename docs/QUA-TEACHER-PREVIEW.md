@@ -1,6 +1,8 @@
-# QUD Teacher audio trial · V28
+# QUD Teacher audio trial · V29
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
+
+V29 changes swipe handling only on mobile.html and synchronizes the loaded badges and offline shell version. This audio trial retains its existing behavior and five-second pause interval. No tests, builds, browser checks, or microphone tests were run for V29; historical results below do not validate this release.
 
 V28 changes Teacher's quiet-pause assistance from three to five seconds on all four entries and updates the help text. Both test pages retain up to three words for pause hints, while production entries retain one; immediate single-word correction and retry behavior are unchanged. No tests, builds, browser checks, or microphone tests were run for V28. Historical results below do not validate this delay change.
 

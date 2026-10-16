@@ -5,6 +5,7 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
   let motion = null;
   let suppressClickUntil = 0;
   let disposed = false;
+  let viewportWidth = innerWidth;
   const temporaryProperties = ['transform', 'opacity', 'transition', 'will-change', 'user-select'];
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -161,12 +162,15 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
     current.latestY = event.clientY;
     if (current.stage === 'tracking') {
       if (Math.hypot(dx, dy) < 10) return;
-      if (Math.abs(dy) >= Math.abs(dx) * .85) {
+      if (Math.abs(dy) > Math.abs(dx) * 1.25) {
         // Leave vertical document scrolling untouched, but do not replay a word afterward.
         suppressClick();
         finish(current);
         return;
       }
+      // Wait for a clear direction rather than rejecting a horizontal swipe
+      // because its first few pixels happened to drift diagonally.
+      if (Math.abs(dx) < Math.abs(dy) * 1.15) return;
       if (!allowed(1) && !allowed(-1)) {
         current.stage = 'blocked';
         suppressClick();
@@ -207,12 +211,12 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
     const dx = event.clientX - current.startX;
     const dy = event.clientY - current.startY;
     const direction = dx >= 0 ? 1 : -1;
-    const threshold = Math.min(88, Math.max(64, reader.getBoundingClientRect().width * .16));
+    const threshold = Math.min(64, Math.max(44, reader.getBoundingClientRect().width * .13));
     const recent = current.samples[0];
     const elapsed = Math.max(1, performance.now() - recent.at);
     const velocity = (event.clientX - recent.x) / elapsed;
     const isFlick = Math.abs(dx) >= 36 && velocity * direction >= .5;
-    if ((Math.abs(dx) >= threshold || isFlick) && Math.abs(dx) >= Math.abs(dy) * 1.3 && allowed(direction)) {
+    if ((Math.abs(dx) >= threshold || isFlick) && Math.abs(dx) >= Math.abs(dy) * 1.15 && allowed(direction)) {
       void commit(current, direction);
     } else {
       void snapBack(current);
@@ -226,6 +230,10 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
   }
 
   function onLostCapture(event) {
+    // Touch starts implicitly captured by the word button. Taking capture
+    // for the page emits a bubbling lostpointercapture from that button;
+    // that handoff is expected, not a cancellation of the page drag.
+    if (event.target !== reader) return;
     if (motion?.pointerId === event.pointerId && motion.stage === 'dragging') {
       suppressClick();
       void snapBack(motion);
@@ -243,6 +251,14 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
     if (document.hidden) cancelImmediately();
   }
 
+  function onResize() {
+    // Mobile browser bars change viewport height while the finger moves.
+    // Only a width change invalidates this horizontal page gesture.
+    if (innerWidth === viewportWidth) return;
+    viewportWidth = innerWidth;
+    cancelImmediately();
+  }
+
   reader.addEventListener('pointerdown', onPointerDown);
   reader.addEventListener('lostpointercapture', onLostCapture);
   reader.addEventListener('click', onClick, true);
@@ -250,7 +266,7 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
   window.addEventListener('pointermove', onPointerMove, { passive: false });
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
-  window.addEventListener('resize', cancelImmediately);
+  window.addEventListener('resize', onResize);
   window.addEventListener('blur', cancelImmediately);
   document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -264,7 +280,7 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointercancel', onPointerCancel);
-    window.removeEventListener('resize', cancelImmediately);
+    window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', cancelImmediately);
     document.removeEventListener('visibilitychange', onVisibilityChange);
   };
