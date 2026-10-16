@@ -1,6 +1,10 @@
-# QUD Teacher audio trial · V29
+# QUD Teacher audio trial · V31
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
+
+V31 makes all Quran text lines, including chapter-opening Bismillah, use the same fitted font size per mobile.html page. The smallest fit needed to preserve printed lines is recalculated with font-size or viewport changes. Desktop and test-page fitting are unchanged; the loaded badges and offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V31.
+
+V30 changes chapter-opening Bismillah sizing only on mobile.html and synchronizes the loaded badges and offline shell version. This audio trial retains its existing behavior. No tests, builds, browser checks, or microphone tests were run for V30.
 
 V29 changes swipe handling only on mobile.html and synchronizes the loaded badges and offline shell version. This audio trial retains its existing behavior and five-second pause interval. No tests, builds, browser checks, or microphone tests were run for V29; historical results below do not validate this release.
 

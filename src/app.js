@@ -506,9 +506,9 @@ function fitMushafLines() {
       line.style.setProperty('--quran-size', `${size}px`);
     }
   }
-  if (lines.length && (document.documentElement.dataset.layout !== 'mobile' || currentPage <= 2)) {
-    // Use a shared fitted size throughout each desktop page, and retain the
-    // uniform opening-page size on the dedicated mobile layout.
+  if (lines.length) {
+    // Use one fitted size for every Quran row, including Bismillah. The
+    // longest row sets the size so printed lines stay intact on phones too.
     const commonSize = Math.min(...lines.map(line => parseFloat(line.style.getPropertyValue('--quran-size')) || fontSize));
     lines.forEach(line => line.style.setProperty('--quran-size', `${commonSize}px`));
   }
