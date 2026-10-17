@@ -108,7 +108,6 @@ html[data-layout=mobile]{overflow-x:clip}
 html[data-layout=mobile] .reader{touch-action:pan-y pinch-zoom;overflow-anchor:none}
 /* Use spare phone height between printed rows without stretching the font. */
 html[data-layout=mobile] .reader .mushaf-line:not(:last-child){margin-block-end:var(--mobile-line-gap,0px)}
-html[data-layout=mobile] .book-view .reader-footer{padding:7px 0 calc(7px + env(safe-area-inset-bottom,0px));font-size:9px;line-height:1.4}
 html[data-layout=mobile] .surah-heading .page-navigation :is(#next-page,#previous-page){display:none}
 html[data-layout=mobile] .mobile-page-dragging{cursor:grabbing}
 html[data-layout=mobile] .mobile-page-turning{pointer-events:none}

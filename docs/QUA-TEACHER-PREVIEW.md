@@ -1,6 +1,8 @@
-# QUD Teacher audio trial · V32
+# QUD Teacher audio trial · V33
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
+
+V33 changes only `mobile.html` behavior: its bottom page/surah footer is removed, and a confirmed horizontal swipe stops the microphone and Teacher playback, waits for recognition to finish, and turns the page with the microphone left off. Partial, cancelled, and vertical gestures do not stop recording; loading, startup, an existing stop operation, open panels, page limits, and a changed source page remain guarded. Spare-height spacing reclaims the removed footer's room. This trial's layout and audio behavior are unchanged; all loaded badges and the offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V33; historical results below do not validate these mobile changes. Changes remain local.
 
 V32 distributes spare visible screen height evenly between lines on ordinary 15-text-line pages of `mobile.html`, retaining a uniform font fitted to the available width and the original words on each line. The footer is compact, spacing responds to screen and browser-bar changes, and short screens retain normal scrolling. Opening pages, surah-heading pages, and shorter passages keep their natural layout. Desktop and both test-page layouts and audio behavior remain unchanged; loaded badges and the offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V32. Historical results below do not validate this layout change.
 

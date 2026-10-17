@@ -1,5 +1,5 @@
 // Mobile-only page dragging. The caller supplies navigation and session guards.
-export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }) {
+export function setupMobilePageSwipe({ reader, canTurn, beforeTurn, turnPage, onSwipeStart }) {
   if (!reader || typeof turnPage !== 'function') return () => {};
 
   let motion = null;
@@ -94,14 +94,23 @@ export function setupMobilePageSwipe({ reader, canTurn, turnPage, onSwipeStart }
     reader.classList.remove('mobile-page-dragging');
     reader.classList.add('mobile-page-turning');
     try {
+      // Stop and finish the current recitation only after the user commits a
+      // page turn. A short drag, vertical scroll or cancelled swipe keeps it on.
+      if (beforeTurn) {
+        const ready = await beforeTurn(direction);
+        if (current.finished) return;
+        if (ready === false) { await snapBack(current); return; }
+      }
+      if (!allowed(direction)) { await snapBack(current); return; }
       if (!reducedMotion.matches) {
         const distance = (innerWidth + reader.getBoundingClientRect().width) / 2 + 40;
         if (!await animate(current, direction * distance, 0, 220)) return;
       }
       // Recording or a dialog may have started while the outgoing page was moving.
       if (!allowed(direction)) { await snapBack(current); return; }
-      await turnPage(direction);
+      const turned = await turnPage(direction);
       if (current.finished) return;
+      if (turned === false) { await snapBack(current); return; }
       if (!reducedMotion.matches) {
         reader.style.setProperty('transition', 'none');
         paint(current, -direction * Math.min(reader.getBoundingClientRect().width * .22, 100), 0);
