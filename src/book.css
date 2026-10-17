@@ -106,6 +106,13 @@ html[data-layout=mobile] .book-view.mobile-reciting main{padding-bottom:calc(32p
 /* Phone pages turn with a horizontal gesture; vertical reading and zoom stay native. */
 html[data-layout=mobile]{overflow-x:clip}
 html[data-layout=mobile] .reader{touch-action:pan-y pinch-zoom;overflow-anchor:none}
+/* Amiri's visible Arabic sits low in its line box. The extra bottom inset
+   centers the title's ink within its frame without enlarging the text. */
+html[data-layout=mobile] .book-view .mushaf-surah-header{display:flex;align-items:center;justify-content:center;min-height:2.2em;padding:0 36px .4em;line-height:1.55;margin:6px 6px 4px}
+html[data-layout=mobile] .book-view .mushaf-surah-header::before,
+html[data-layout=mobile] .book-view .mushaf-surah-header::after{top:50%;transform:translateY(-50%);line-height:1}
+html[data-layout=mobile] .book-view .bismillah-line{margin-block:0;line-height:1.95}
+html[data-layout=mobile] .book-view .bismillah-line .word{line-height:inherit}
 /* Use spare phone height between printed rows without stretching the font. */
 html[data-layout=mobile] .reader .mushaf-line:not(:last-child){margin-block-end:var(--mobile-line-gap,0px)}
 html[data-layout=mobile] .surah-heading .page-navigation :is(#next-page,#previous-page){display:none}
