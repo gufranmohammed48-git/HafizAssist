@@ -11,6 +11,8 @@ export const messages = {
   'Mujawwad': 'مجود',
   'Mahmoud Khalil Al-Husary': 'محمود خليل الحصري',
   'Abdul Basit Abdus Samad': 'عبد الباسط عبد الصمد',
+  'Mishary Rashid Al-Afasy': 'مشاري راشد العفاسي',
+  'Muhammad Siddiq Al-Minshawi': 'محمد صديق المنشاوي',
   'Quran.com word reference': 'تلاوة الكلمة من Quran.com',
   'Teacher on': 'المعلّم مفعّل',
   'Teacher off': 'المعلّم متوقف',
@@ -96,7 +98,8 @@ export const messages = {
   'Teacher timing request cancelled.': 'أُلغي طلب توقيت تلاوة المعلّم.',
 };
 
-const voiceSource = '(?:Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad|Quran\\.com word reference)(?: · (?:Murattal|Mujawwad))?';
+const reciterName = '(?:Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad|Mishary Rashid Al-Afasy|Muhammad Siddiq Al-Minshawi)';
+const voiceSource = '(?:' + reciterName + '|Quran\\.com word reference)(?: · (?:Murattal|Mujawwad))?';
 const timingDetail = '(?: using QUA letter boundaries| using the original word timing; QUA boundaries were unavailable or conflicting)?';
 const timingArabic = suffix => suffix.includes('original word timing')
   ? ' باستخدام التوقيت الأصلي للكلمات؛ إذ كانت حدود QUA غير متاحة أو متعارضة'
@@ -107,12 +110,12 @@ const timingArabic = suffix => suffix.includes('original word timing')
 // Quran words, IPA, model output, and file or recording identifiers.
 export const patterns = [
   [/^(Teacher plays one word\.|Pause help plays up to three words; corrections play one word\.) (.+)$/, (m, t) => `${t(m[1])} ${t(m[2])}`],
-  [/^(.+) Using Quran\.com single-word audio instead of (Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad)\.$/, (m, t) => `${t(m[1])} تُستخدم تلاوة الكلمة من Quran.com بدلًا من ${t(m[2])}.`],
-  [new RegExp(`^Teacher reads one word in (Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad) \\((Murattal|Mujawwad)\\)(${timingDetail})\\.$`), (m, t) => `يتلو المعلّم كلمة واحدة بصوت ${t(m[1])} (${t(m[2])})${timingArabic(m[3])}.`],
-  [new RegExp(`^Teacher reads (\\d+) words in (Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad) \\((Murattal|Mujawwad)\\)(${timingDetail})\\.$`), (m, t, n) => `يتلو المعلّم ${n(m[1])} كلمات بصوت ${t(m[2])} (${t(m[3])})${timingArabic(m[4])}.`],
+  [new RegExp(`^(.+) Using Quran\\.com single-word audio instead of (${reciterName})\\.$`), (m, t) => `${t(m[1])} تُستخدم تلاوة الكلمة من Quran.com بدلًا من ${t(m[2])}.`],
+  [new RegExp(`^Teacher reads one word in (${reciterName}) \\((Murattal|Mujawwad)\\)(${timingDetail})\\.$`), (m, t) => `يتلو المعلّم كلمة واحدة بصوت ${t(m[1])} (${t(m[2])})${timingArabic(m[3])}.`],
+  [new RegExp(`^Teacher reads (\\d+) words in (${reciterName}) \\((Murattal|Mujawwad)\\)(${timingDetail})\\.$`), (m, t, n) => `يتلو المعلّم ${n(m[1])} كلمات بصوت ${t(m[2])} (${t(m[3])})${timingArabic(m[4])}.`],
   [new RegExp(`^(${voiceSource}(?: / ${voiceSource})*)\\. (.+)$`), (m, t) => `${t(m[1])}. ${t(m[2])}`],
   [new RegExp(`^(${voiceSource}) / (${voiceSource}(?: / ${voiceSource})*)$`), (m, t) => `${t(m[1])} / ${t(m[2])}`],
-  [/^(Mahmoud Khalil Al-Husary|Abdul Basit Abdus Samad|Quran\.com word reference) · (Murattal|Mujawwad)$/, (m, t) => `${t(m[1])} · ${t(m[2])}`],
+  [new RegExp(`^(${reciterName}|Quran\\.com word reference) · (Murattal|Mujawwad)$`), (m, t) => `${t(m[1])} · ${t(m[2])}`],
   [/^Playing ayah (\d+):(\d+)\. (.+)$/, (m, t, n) => `جارٍ تلاوة الآية ${n(m[1])}:${n(m[2])}. ${t(m[3])}`],
   [/^Listen to the next (\d+) words\.( Unavailable timings use Quran\.com word audio\.)?$/, (m, t, n) => `استمع إلى الكلمات الـ${n(m[1])} التالية.${m[2] ? ` ${t(m[2].trim())}` : ''}`],
   [/^Replay (\d+) words$/, (m, t, n) => `إعادة تلاوة ${n(m[1])} كلمات`],

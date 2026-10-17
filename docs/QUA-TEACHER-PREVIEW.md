@@ -1,4 +1,8 @@
-# QUD Teacher audio trial · V36
+# QUD Teacher audio trial · V38
+
+V38 simplifies Settings on all four entries by removing Recent practice and privacy/offline/footer explanatory text. Offline caching still runs and local practice data is retained. The QUD experiment remains confined to this trial. No tests, builds, browser checks, or audio checks were run; changes remain local.
+
+V37 adds Al-Minshawi Murattal, Mishary Al-Afasy Murattal, and Al-Minshawi Mujawwad to the shared Teacher menu using the existing EveryAyah/quran-align timing files. This gives five recitation choices. The QUD trial and its two supplied datasets are unchanged; the added voices use the original timing source. No tests, builds, browser checks, or audio playback checks were run for V37.
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
 

@@ -1,6 +1,6 @@
 # Teacher voice timing sources
 
-These timing files support the optional Teacher voice selector on `test.html`. V12 shows Al-Husary Murattal and Abdul Basit Mujawwad only; the other imported files remain attributed but are not loaded by those choices. The files contain timing metadata only. No recitation audio is bundled here.
+These timing files support the Teacher voice selector shared by all four entries. V37 activates all five original-source recitation choices: three Murattal and two Mujawwad, representing four reciters. Al-Husary remains the initial voice and existing saved selections are preserved. V12 previously offered only Al-Husary Murattal and Abdul Basit Mujawwad. The files contain timing metadata only. No recitation audio is bundled here.
 
 ## Attribution and license
 
@@ -14,13 +14,13 @@ Adaptations: removed alignment statistics; indexed records by `surah:ayah`; reta
 
 Each timing file must be used with its corresponding **[EveryAyah](https://everyayah.com/data/)** recording folder. A verse URL has the form `https://everyayah.com/data/FOLDER/SSSAAA.mp3`, where `SSS` is the three-digit surah and `AAA` is the three-digit ayah. Changing recording or bitrate without matching timing data can shift the audio boundaries.
 
-| Voice ID | Recitation | Exact folder / original JSON stem | V12 usage |
+| Voice ID | Recitation | Exact folder / original JSON stem | V37 usage |
 | --- | --- | --- | --- |
-| `husary-murattal` | Mahmoud Khalil Al-Husary · Murattal | `Husary_64kbps` | Active preview choice |
-| `minshawi-murattal` | Muhammad Siddiq Al-Minshawi · Murattal | `Minshawy_Murattal_128kbps` | Retained from V10 |
-| `afasy-murattal` | Mishary Rashid Al-Afasy · Murattal | `Alafasy_128kbps` | Retained from V10 |
-| `abdulbasit-mujawwad` | Abdul Basit Abdus Samad · Mujawwad | `Abdul_Basit_Mujawwad_128kbps` | Active preview choice |
-| `minshawi-mujawwad` | Muhammad Siddiq Al-Minshawi · Mujawwad | `Minshawy_Mujawwad_192kbps` | Retained from V10 |
+| `husary-murattal` | Mahmoud Khalil Al-Husary · Murattal | `Husary_64kbps` | Active; initial voice; also active in V12 |
+| `minshawi-murattal` | Muhammad Siddiq Al-Minshawi · Murattal | `Minshawy_Murattal_128kbps` | Active; restored from V10 |
+| `afasy-murattal` | Mishary Rashid Al-Afasy · Murattal | `Alafasy_128kbps` | Active; restored from V10 |
+| `abdulbasit-mujawwad` | Abdul Basit Abdus Samad · Mujawwad | `Abdul_Basit_Mujawwad_128kbps` | Active; also active in V12 |
+| `minshawi-mujawwad` | Muhammad Siddiq Al-Minshawi · Mujawwad | `Minshawy_Mujawwad_192kbps` | Active; restored from V10 |
 
 These are source recording sets, not an objective ranking. V10 also offered Al-Husary Mujawwad as full-ayah help because the imported archive had no matching timing file. That choice and whole-ayah fallback are removed in V12.
 
@@ -36,6 +36,8 @@ The entries mean `[firstWordIndex, exclusiveEndWordIndex, startMilliseconds, end
 
 The source covers all 6,236 ayah records but can omit a word or combine multiple words into one span. Only a span with an exclusive end exactly one greater than the start identifies an isolated word. Repetitions and unusual boundaries may be imperfect. Do not fabricate timings for absent words or treat combined spans as a verified isolated-word clip.
 
-V12 falls back to the existing Quran.com word reference when a timing is missing, grouped, shorter than 80 ms, has a source word-count mismatch, or exceeds decoded audio bounds. That fallback is labeled separately and does not claim the selected reciter's identity. No missing boundaries were newly aligned or manually reviewed in this batch. Obtaining complete consistent coverage requires alignment against the exact recordings and listening review before publishing reviewed timings or permitted word clips.
+Since V12, playback falls back to the existing Quran.com word reference when a timing is missing, grouped, shorter than 80 ms, has a source word-count mismatch, or exceeds decoded audio bounds. V37 preserves that behavior for all five choices. The fallback is labeled separately and does not claim the selected reciter's identity; it does not play the whole ayah. No missing boundaries were newly aligned or manually reviewed in this batch. Obtaining complete consistent coverage requires alignment against the exact recordings and listening review before publishing reviewed timings or permitted word clips.
+
+V37 adds no recognition model and no QUD source to production. It reuses the already bundled original-source timing JSON files without changing their data. No tests, builds, browser checks, or audio tests were run; changes remain local.
 
 Recitation recordings remain subject to the original reciter/source rights; the timing metadata license does not grant additional rights to those recordings.

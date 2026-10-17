@@ -20,7 +20,12 @@ export async function refreshOfflineStatus() {
 export async function setupOffline() {
   label = document.createElement('p'); label.className = 'privacy-note'; label.id = 'offline-status';
   label.setAttribute('role', 'status'); label.setAttribute('aria-live', 'polite');
-  document.querySelector('.privacy-note').after(label);
+  const anchor = document.querySelector('.privacy-note');
+  if (anchor) anchor.after(label);
+  else {
+    // Offline saving still runs when the book layout omits status copy.
+    label.hidden = true; document.body.append(label);
+  }
   if (!('serviceWorker' in navigator) || !window.isSecureContext) {
     show('Offline mode requires a browser with service workers, on HTTPS or localhost.'); return;
   }

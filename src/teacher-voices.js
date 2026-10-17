@@ -7,7 +7,10 @@ const DEFAULT_VOICE = 'husary-murattal';
 const AUDIO_BASE = 'https://everyayah.com/data/';
 const VOICES = [
   { id: 'husary-murattal', name: 'Mahmoud Khalil Al-Husary', style: 'Murattal', folder: 'Husary_64kbps', timed: true },
+  { id: 'minshawi-murattal', name: 'Muhammad Siddiq Al-Minshawi', style: 'Murattal', folder: 'Minshawy_Murattal_128kbps', timed: true },
+  { id: 'afasy-murattal', name: 'Mishary Rashid Al-Afasy', style: 'Murattal', folder: 'Alafasy_128kbps', timed: true },
   { id: 'abdulbasit-mujawwad', name: 'Abdul Basit Abdus Samad', style: 'Mujawwad', folder: 'Abdul_Basit_Mujawwad_128kbps', timed: true },
+  { id: 'minshawi-mujawwad', name: 'Muhammad Siddiq Al-Minshawi', style: 'Mujawwad', folder: 'Minshawy_Mujawwad_192kbps', timed: true },
 ];
 const timingData = new Map(), timingRequests = new Map();
 const abortError = () => new DOMException('Teacher voice selection cancelled.', 'AbortError');

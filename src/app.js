@@ -640,13 +640,15 @@ function searchPassage(event) {
 }
 
 function renderHistory() {
-  $('history-list').replaceChildren();
-  if (!history.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Your completed practice sessions will appear here.'; $('history-list').append(p); return; }
+  const list = $('history-list');
+  if (!list) return;
+  list.replaceChildren();
+  if (!history.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Your completed practice sessions will appear here.'; list.append(p); return; }
   for (const item of history.slice(0, 8)) {
     const row = document.createElement('div'); row.className = 'history-item';
     const name = document.createElement('div'); name.textContent = item.passage || `${item.surah} · ${item.from}–${item.to}`;
     const detail = document.createElement('span'); detail.textContent = `${item.matched} matched · ${formatTime(item.seconds)} · ${new Date(item.date).toLocaleDateString()}`;
-    row.append(name, detail); $('history-list').append(row);
+    row.append(name, detail); list.append(row);
   }
 }
 function saveSession() {

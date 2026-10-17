@@ -69,7 +69,11 @@ function setupBookLayout() {
   session.className = 'book-session';
   session.append(document.querySelector('.recitation-counts'), document.querySelector('.session-inline'));
   section('This recitation', session);
-  settings.append(document.querySelector('.history'), document.querySelector('.privacy-note'), document.querySelector('main > footer'));
+  // Keep Settings for reading controls. Existing local practice data is
+  // retained, but its history panel and explanatory footer are not shown.
+  for (const selector of ['.history', '.privacy-note', 'main > footer']) {
+    document.querySelector(selector)?.remove();
+  }
   const svg = paths => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
   const control = (id, label, icon) => {
     const button = document.createElement('button');
