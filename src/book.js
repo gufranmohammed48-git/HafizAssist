@@ -204,7 +204,11 @@ function setupBookLayout() {
   }
   try { setupBookLayout(); }
   catch (error) { console.error('Book layout setup failed:', error); }
-  import('./app.js').catch(error => {
+  const languageReady = document.documentElement.dataset.uiLanguage === 'enabled'
+    ? import('./ui-language.js').then(module => module.setupLanguageControls()).catch(error => {
+      console.error('Language settings could not load:', error);
+    }) : Promise.resolve();
+  languageReady.then(() => import('./app.js')).catch(error => {
     passage.replaceChildren();
     const message = document.createElement('p');
     message.textContent = 'The Quran app could not start: ' + error.message;

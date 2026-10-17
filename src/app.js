@@ -409,7 +409,8 @@ function renderPassage(continuing = false) {
   wordInfo.hide();
   $('ayahs').replaceChildren(); words = []; elements = [];
   $('ayahs').classList.toggle('opening-page', currentPage <= 2);
-  $('page-label').textContent = `Page ${currentPage}`;
+  $('page-label').textContent = document.documentElement.dataset.uiLanguage === 'enabled'
+    ? arabicNumber.format(currentPage) : `Page ${currentPage}`;
   const verses = chapters.flatMap(c => c.verses).filter(v => layouts[verseKey(v)][1].some(([page]) => page === currentPage));
   const lines = new Map();
   function pageLine(line) {
@@ -457,7 +458,9 @@ function renderPassage(continuing = false) {
   const juz = layouts[verseKey(verses[0])][0];
   $('surah-title').textContent = `الجزء ${juzNames[juz - 1] || arabicNumber.format(juz)}`;
   $('surah-title').setAttribute('aria-label', `Juz ${juz}`);
-  $('passage-label').textContent = `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}`;
+  const passageLabel = `PAGE ${currentPage} · ${pageChapters.map(c => c.en).join(' / ')}`;
+  $('passage-label').textContent = passageLabel;
+  $('passage-label').dataset.passage = passageLabel;
   if (continuing) {
     states = new Array(words.length); committed = [...states]; reviewDetails = [];
     cursor = 0; segmentStart = 0; lastFollowedAyah = null; paint();
@@ -621,7 +624,7 @@ function searchPassage(event) {
     .replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
   if (/^\d+$/.test(value)) { openPage(Number(value)); return; }
   const key = value.match(/^(\d+)\s*:\s*(\d+)$/);
-  const surah = value.match(/^s\s*:?\s*(\d+)$/i);
+  const surah = value.match(/^[sس]\s*:?\s*(\d+)$/i);
   if (key) {
     const normalized = `${Number(key[1])}:${Number(key[2])}`;
     if (layouts[normalized]) { openPage(layouts[normalized][1][0][0], normalized); return; }
@@ -650,7 +653,7 @@ function saveSession() {
   if (savedThisRun || elapsed < 1) return;
   savedThisRun = true;
   const entry = { surah: chapter.en, from: words[0]?.ayah, to: words.at(-1)?.ayah, matched: completedMatched + states.filter(s => s === 'matched').length, review: completedReview + states.filter(s => s === 'review').length, seconds: elapsed, date: new Date().toISOString() };
-  entry.passage = completedPages ? `Pages ${firstPracticePage} → ${currentPage} · ${completedPages} completed` : $('passage-label').textContent;
+  entry.passage = completedPages ? `Pages ${firstPracticePage} → ${currentPage} · ${completedPages} completed` : $('passage-label').dataset.passage;
   history.unshift(entry); history = history.slice(0, 30);
   try { localStorage.setItem('hafizassist-history', JSON.stringify(history)); } catch { status('Session finished. Browser storage is unavailable, so history cannot be saved.'); }
   renderHistory();

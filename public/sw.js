@@ -1,5 +1,5 @@
 // Increment with every delivered change; keep index.html's badge in sync.
-const VERSION = 'V34';
+const VERSION = 'V36';
 const PREFIX = `hafizassist-shell:${self.registration.scope}:`;
 // Numbering restarted at the user's request. Keep this cache series distinct
 // from the original V1 so an old open tab cannot receive a mixed app shell.
@@ -7,6 +7,7 @@ const SHELL = PREFIX + 'series2:' + VERSION;
 const url = path => new URL(path, self.registration.scope).href;
 const FILES = [
   'index.html', 'mobile.html', 'test.html', 'test2.html', 'src/book.js', 'src/book.css', 'src/entry.js', 'src/mobile-page-swipe.js', 'favicon.svg', 'src/app.js', 'src/alignment.js', 'src/recognition-boundary.js', 'src/teacher-mode.js', 'src/teacher-retry.js', 'src/teacher-voices.js', 'src/teacher-qua.js', 'data/teacher-qua/catalog.json', 'src/teacher-activity.js', 'src/teacher-voicing.js', 'src/madd.js', 'src/tajweed-timing.js', 'src/tajweed-log.js', 'src/vowel-feedback.js', 'src/debug.js', 'src/word-info.js',
+  'src/ui-language.js', 'src/ui-language-core-ar.js', 'src/ui-language-teacher-ar.js', 'src/ui-language-word-ar.js',
   'src/offline.js', 'src/style.css', 'src/voice-search-worker.js', 'data/quran.json', 'data/HafsSmart.ttf', 'data/AmiriQuran-Regular.ttf',
   'data/mushaf-layout.json', 'data/tajweed-words.json', 'data/tajweed-colors.json', 'src/tajweed-colors.js', 'assets/bismillah.png',
   'recognizer-worker.js', 'audio-worklet.js', 'models/tokens.txt', 'model-config.json',

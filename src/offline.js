@@ -1,6 +1,7 @@
 let registration;
 let label;
-function show(message) { if (label) label.textContent = message; }
+let lastMessage = '';
+function show(message) { lastMessage = message; if (label) label.textContent = message; }
 
 export async function refreshOfflineStatus() {
   if (!registration?.active) return;
@@ -11,7 +12,7 @@ export async function refreshOfflineStatus() {
     if (!data.shell) show('Offline setup is incomplete. Reopen while connected to finish saving the app.');
     else if (!data.model) show('App saved offline · Load the speech model once to finish offline setup.');
     else show(navigator.onLine ? 'Ready offline · App, Quran, and speech model saved on this device.' : 'Offline · Quran and recitation tracking are available on this device.');
-    if (registration.waiting) show(label.textContent + ' Update ready: close all HafizAssist tabs and reopen.');
+    if (registration.waiting) show(lastMessage + ' Update ready: close all HafizAssist tabs and reopen.');
   };
   registration.active.postMessage({ type: 'offline-status' }, [channel.port2]);
 }

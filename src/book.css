@@ -119,6 +119,25 @@ html[data-layout=mobile] .surah-heading .page-navigation :is(#next-page,#previou
 html[data-layout=mobile] .mobile-page-dragging{cursor:grabbing}
 html[data-layout=mobile] .mobile-page-turning{pointer-events:none}
 
+/* Shared desktop/mobile language control. Keep the centered Mushaf and
+   physical microphone/Teacher control order stable when the UI becomes RTL. */
+html[data-ui-language=enabled] #book-settings .language-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 16px;border-top:0}
+html[data-ui-language=enabled] .language-setting label{font-size:13px;font-weight:600;letter-spacing:0;margin:0;color:var(--ink)}
+html[data-ui-language=enabled] .language-setting select{width:155px;max-width:65%;font-size:13px}
+html[data-ui-language=enabled] #page-label{font-family:BookQuran,serif;font-size:16px;line-height:1.5;padding-block-end:.2em}
+html[data-ui-language=enabled][lang=ar] .book-view main,
+html[data-ui-language=enabled][lang=ar] .book-view .recorder-main,
+html[data-ui-language=enabled][lang=ar] .book-view .surah-heading{direction:ltr}
+html[data-ui-language=enabled][lang=ar] :is(#book-settings,#teacher-voices,#voice-dialog,#word-info,#teacher-feedback,#mic-notice){direction:rtl;text-align:right}
+html[data-ui-language=enabled][lang=ar] :is(#book-settings,#teacher-voices,#voice-dialog,#word-info,#teacher-feedback,#mic-notice) :is(label,p,h2,h3,summary){letter-spacing:0}
+html[data-ui-language=enabled][lang=ar] #book-settings .book-session{direction:rtl}
+html[data-ui-language=enabled][lang=ar] #book-settings :is(.practice-actions,.font-controls),
+html[data-ui-language=enabled][lang=ar] :is(.word-info-pronunciation,.session-meta){direction:ltr;unicode-bidi:isolate}
+html[data-ui-language=enabled][lang=ar] #book-settings .font-controls{margin-left:0;margin-right:auto}
+html[data-ui-language=enabled][lang=ar] #book-settings #search-hint{text-align:right}
+html[data-ui-language=enabled][lang=ar] #search{direction:rtl;text-align:right}
+html[data-ui-language=enabled][lang=ar] #mic-notice-close{margin-left:0;margin-right:auto}
+
 /* The preview panel reserves the measured toolbar area and leaves the page
    centered. JS delays hidden on close for browsers without display animation. */
 html[data-teacher-voices=preview] #teacher-voices{position:fixed;z-index:16;top:16px;left:82px;width:min(320px,calc(100vw - 98px));max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;padding:18px;border:1px solid var(--border);border-radius:20px;background:var(--card);background:color-mix(in srgb,var(--card) 96%,transparent);color:var(--ink);box-shadow:8px 12px 44px #0003;backdrop-filter:blur(12px);opacity:0;pointer-events:none;transform:translateX(-10px) scale(.88,.92);clip-path:inset(8% 100% 8% 0 round 20px);transform-origin:left center;transition:transform 480ms cubic-bezier(.22,1,.36,1),clip-path 480ms cubic-bezier(.22,1,.36,1),opacity 260ms ease;scrollbar-width:thin;scrollbar-color:var(--border) transparent}

@@ -1,6 +1,10 @@
-# QUD Teacher audio trial · V34
+# QUD Teacher audio trial · V36
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
+
+V36 makes the centered page label on `index.html` and `mobile.html` show only Arabic-Indic digits, such as `١٢`, without “Page” or `الصفحة` in either interface language. Language selection, offline caching, and tracking behavior are unchanged. Both test interfaces are unchanged apart from synchronized V36 badges. No tests, builds, browser checks, or microphone tests were run for V36; historical results below do not validate this label change. Changes remain local.
+
+V35 adds **Language: English / العربية** only to settings on `index.html` and `mobile.html`. English is the default, with the selection saved in shared local storage. Controls, messages, tooltips, statuses, Teacher options and feedback, and word details update live; Arabic uses right-to-left interface direction. Quran text remains Arabic, while phonemes, entered search values, recordings, and the reading position are unchanged. Their centered page label always uses `الصفحة` and an Arabic-Indic number in either language, and chapter search accepts `س ٢`. Translation modules are precached for offline use. `test.html` and this `test2.html` trial retain their English interface and existing audio behavior, with V35 badges synchronized across all entries. No tests, builds, browser checks, or microphone tests were run for V35; historical results below do not validate localization. Changes remain local.
 
 V34 polishes chapter-title centering and Bismillah spacing only on `mobile.html`. The Arabic title baseline and side ornaments are centered within the frame, title margins are smaller, and Bismillah uses ordinary row line height without extra vertical margins. Uniform fonts, word assignments, microphone and swipe behavior, and offline caching remain unchanged. Desktop and both test-page layouts and audio behavior are unchanged; loaded badges and the offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V34; historical results below do not validate these mobile changes. Changes remain local.
 
