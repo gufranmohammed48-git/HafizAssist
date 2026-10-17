@@ -1,6 +1,8 @@
-# QUD Teacher audio trial · V31
+# QUD Teacher audio trial · V32
 
 Open [test2.html](http://localhost:5173/test2.html) with the local project server running. This separate page copies the working `test.html` preview and opts into QUD Technologies' Quranic Universal Audio word timings with `data-teacher-timings="qua"`.
+
+V32 distributes spare visible screen height evenly between lines on ordinary 15-text-line pages of `mobile.html`, retaining a uniform font fitted to the available width and the original words on each line. The footer is compact, spacing responds to screen and browser-bar changes, and short screens retain normal scrolling. Opening pages, surah-heading pages, and shorter passages keep their natural layout. Desktop and both test-page layouts and audio behavior remain unchanged; loaded badges and the offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V32. Historical results below do not validate this layout change.
 
 V31 makes all Quran text lines, including chapter-opening Bismillah, use the same fitted font size per mobile.html page. The smallest fit needed to preserve printed lines is recalculated with font-size or viewport changes. Desktop and test-page fitting are unchanged; the loaded badges and offline shell version are synchronized. No tests, builds, browser checks, or microphone tests were run for V31.
 

@@ -55,7 +55,7 @@ let history = [];
 let voiceSearch = false, voiceText = '', searchWorker, searchRequest = 0, searchTimer;
 let scrollFrame;
 let mobileAlignmentPending = false;
-let mobileAlignmentFrame, mobileReadingStart;
+let mobileAlignmentFrame, mobileReadingStart, mobileHeightFrame;
 let micNoticeTimer, micNoticeExpiresAt = 0, pendingMicNotice = '';
 function hideMicNotice() {
   clearTimeout(micNoticeTimer); pendingMicNotice = ''; micNoticeExpiresAt = 0;
@@ -368,9 +368,15 @@ if (mobileView) {
   };
   document.querySelector('.reader').addEventListener('pointerdown', releaseReadingStart, { passive: true });
   window.addEventListener('wheel', releaseReadingStart, { passive: true });
-  window.visualViewport?.addEventListener('resize', () => {
-    if (mobileReadingStart) alignMobileReadingStart(false);
-  });
+  const resizeReadingPage = () => {
+    cancelAnimationFrame(mobileHeightFrame);
+    mobileHeightFrame = requestAnimationFrame(() => {
+      if (mobileReadingStart) alignMobileReadingStart(false);
+      else fitMobilePageHeight();
+    });
+  };
+  window.visualViewport?.addEventListener('resize', resizeReadingPage);
+  window.addEventListener('resize', resizeReadingPage);
 }
 function appendWord(row, word, text) {
   const index = words.length; words.push(word);
@@ -512,8 +518,38 @@ function fitMushafLines() {
     const commonSize = Math.min(...lines.map(line => parseFloat(line.style.getPropertyValue('--quran-size')) || fontSize));
     lines.forEach(line => line.style.setProperty('--quran-size', `${commonSize}px`));
   }
+  fitMobilePageHeight();
   $('font-smaller').disabled = fontSize <= 24;
   $('font-larger').disabled = fontSize >= 56;
+}
+function fitMobilePageHeight() {
+  if (!mobileView) return;
+  const viewport = window.visualViewport;
+  // Leave pinch zoom alone instead of rearranging the text beneath it.
+  if (viewport && Math.abs(viewport.scale - 1) > .05) return;
+  const container = $('ayahs'), reader = container.closest('.reader');
+  const rows = [...container.children];
+  // Opening pages and pages with chapter headings keep their natural layout.
+  // Only a full page of 15 text rows shares the extra vertical space.
+  if (rows.length !== 15 || rows.some(row => !row.classList.contains('mushaf-line'))) {
+    container.style.removeProperty('--mobile-line-gap');
+    return;
+  }
+  const first = rows[0].getBoundingClientRect();
+  const last = rows.at(-1).getBoundingClientRect();
+  const gapCount = rows.length - 1;
+  const oldGap = parseFloat(container.style.getPropertyValue('--mobile-line-gap')) || 0;
+  // Subtract our previous spacing so repeated fits cannot accumulate gaps.
+  const naturalHeight = last.bottom - first.top - oldGap * gapCount;
+  const footerHeight = reader.getBoundingClientRect().bottom - last.bottom;
+  const top = phase === 'recording' && !voiceSearch
+    ? 8 : Math.max(8, first.top - (viewport?.offsetTop || 0));
+  const available = (viewport?.height || innerHeight) - top - footerHeight - 12;
+  const size = parseFloat(rows[0].style.getPropertyValue('--quran-size')) || fontSize;
+  // Width fitting remains the font limit. Add only breathing room between
+  // rows; a short screen keeps natural spacing and document scrolling.
+  const gap = Math.max(0, Math.min(size * .65, (available - naturalHeight) / gapCount));
+  container.style.setProperty('--mobile-line-gap', `${gap}px`);
 }
 let fittedWidth = 0, fitFrame;
 new ResizeObserver(entries => {
