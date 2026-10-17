@@ -7,6 +7,13 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 createServer(async (req, res) => {
   try {
     const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    // This server serves the offline web app, not the production account
+    // Worker. Return a clear JSON state rather than an HTML 404/login page.
+    if (path === '/api/account' || path.startsWith('/api/account/')) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store' });
+      res.end(JSON.stringify({ configured: false, user: null, error: 'Accounts are not configured on this local server.' }));
+      return;
+    }
     if (path === '/recite' || path === '/recite/') { res.writeHead(302, { Location: '/' }).end(); return; }
     const rel = path === '/' ? 'index.html' : path.replace(/^\//, '');
     let file = resolve(root, rel);

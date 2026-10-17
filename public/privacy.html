@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="How Recite Al Quran handles sign-in, saved progress, local speech recognition, and browser storage.">
+  <title>Privacy · Recite Al Quran</title>
+  <style>
+    :root{font-family:"Segoe UI",Tahoma,sans-serif;color:#253a32;background:#e9e6dd;--paper:#fffdf8;--muted:#69766c;--border:#dce3d8;--green:#215d49;line-height:1.75;color-scheme:light}
+    *{box-sizing:border-box}body{margin:0;padding:32px 20px 48px}main{max-width:820px;margin:auto;background:var(--paper);padding:32px 38px;border:1px solid var(--border);border-radius:18px;box-shadow:0 16px 50px #172c1d0b}a{color:var(--green);text-underline-offset:3px}a:focus-visible{outline:3px solid #b89f62;outline-offset:4px}nav{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:14px}h1{font-size:28px;line-height:1.25;font-weight:650;letter-spacing:-.7px;margin:28px 0 5px}h2{font-size:23px;font-weight:600;line-height:1.5;margin:0 0 14px}h3{font-size:16px;font-weight:650;margin:23px 0 6px}p{font-size:15px;margin:0 0 12px}.date,.providers{font-size:13px;color:var(--muted)}.intro{font-size:16px;margin:18px 0 24px}section{scroll-margin-top:24px}section+section{border-top:1px solid var(--border);margin-top:32px;padding-top:28px}[lang=ar]{font-family:Tahoma,"Segoe UI",sans-serif;line-height:1.95}[lang=ar] h2,[lang=ar] h3{letter-spacing:0}.providers{border-top:1px solid var(--border);padding-top:18px;margin-top:25px}
+    @media(prefers-color-scheme:dark){:root{color:#e3e8de;background:#0e1712;--paper:#15231b;--muted:#a0afa2;--border:#34483a;--green:#a2d4b3;color-scheme:dark}main{box-shadow:0 16px 50px #0002}}
+    @media(max-width:600px){body{padding:14px 12px 28px}main{padding:23px 20px;border-radius:14px}h1{font-size:25px}p{font-size:14px}.intro{font-size:15px}}
+  </style>
+</head>
+<body>
+  <main>
+    <nav aria-label="Privacy page navigation"><a href="/">← Back to Recite Al Quran</a><a href="#arabic" lang="ar" dir="rtl">العربية</a></nav>
+    <h1>Recite Al Quran</h1>
+    <p class="date">Privacy · Updated October 17, 2026</p>
+    <section id="english" aria-labelledby="english-title">
+      <h2 id="english-title">Your account and practice data</h2>
+      <p class="intro">You can read and practise without signing in. Speech recognition runs on your device; the app does not upload your microphone audio, recordings, or recognition transcripts.</p>
+      <h3>Google sign-in</h3>
+      <p>Sign-in requires an internet connection. We request only Google’s <code>openid</code>, <code>email</code>, and <code>profile</code> permissions. The account service stores your verified Google account identifier, name, and email address. It does not receive your Google password or request access to Gmail or Drive.</p>
+      <h3>What your account saves</h3>
+      <p>Our Cloudflare Worker and D1 database store one saved Quran position (page, surah, ayah, and word), correct and reviewed-word totals, and update times. They also store session-token hashes and temporary sign-in verification data. Progress is saved locally first and synced when connected. Audio and transcripts are not part of account progress.</p>
+      <h3>Cookies and local storage</h3>
+      <p>Secure, HttpOnly cookies keep you signed in for up to 30 days. A temporary cookie completes Google sign-in. Your browser also stores guest or account progress, reading preferences, the app, Quran data, the speech model, and downloaded reference clips. Removing browser site data removes these local copies.</p>
+      <h3>Reference audio and hosting</h3>
+      <p>Teacher uses reference recordings from external audio providers, including EveryAyah and Quran.com. Uncached clips need an internet connection; the provider receives the recording request. Cloudflare hosts the app and account service and may process normal request information, such as network and error logs. Those requests do not include raw microphone audio or recognition transcripts.</p>
+      <h3>Deleting your account</h3>
+      <p>Open the account icon, choose <strong>Delete account</strong>, and confirm. This deletes your identity record, saved progress, and all sign-in sessions from this app’s account database. It also clears this account’s saved checkpoint in the current browser. Separate guest practice, the downloaded speech model, and other app files remain. Copies already stored on other devices cannot be erased remotely; remove their browser site data to clear them. Deleting this app account does not delete your Google account. Normal hosting logs follow the hosting provider’s retention settings.</p>
+      <p class="providers">Provider privacy information: <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Google Privacy Policy</a> · <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer" target="_blank">Cloudflare Privacy Policy</a>.</p>
+    </section>
+    <section id="arabic" lang="ar" dir="rtl" aria-labelledby="arabic-title">
+      <h2 id="arabic-title">الخصوصية وبيانات التدريب</h2>
+      <p class="date">آخر تحديث: ١٧ أكتوبر ٢٠٢٦</p>
+      <p class="intro">يمكنك القراءة والتدرّب دون تسجيل الدخول. يعمل التعرّف على التلاوة على جهازك؛ ولا يرفع التطبيق صوت الميكروفون أو التسجيلات أو النص الناتج عن التعرّف على الصوت.</p>
+      <h3>تسجيل الدخول باستخدام Google</h3>
+      <p>يتطلب تسجيل الدخول اتصالًا بالإنترنت. نطلب فقط أذونات <bdi><code>openid</code> و<code>email</code> و<code>profile</code></bdi>. تحفظ خدمة الحسابات معرّف حساب Google المتحقق منه واسمك وبريدك الإلكتروني. ولا تتلقى كلمة مرور Google، ولا تطلب الوصول إلى Gmail أو Drive.</p>
+      <h3>ما يُحفظ في حسابك</h3>
+      <p>تحفظ خدمة Cloudflare Worker وقاعدة بيانات D1 موضعًا واحدًا في القرآن: الصفحة والسورة والآية والكلمة، مع مجموع الكلمات الصحيحة والمحددة للمراجعة وأوقات التحديث. وتُحفظ أيضًا بصمات رموز جلسات الدخول وبيانات التحقق المؤقتة. يُحفظ التقدّم على الجهاز أولًا، ثم يُزامَن عند الاتصال. لا تتضمن بيانات التقدّم صوتك أو نص التعرّف عليه.</p>
+      <h3>ملفات الارتباط والتخزين على الجهاز</h3>
+      <p>تُبقيك ملفات ارتباط آمنة وغير متاحة لبرامج الصفحة مسجّلًا للدخول لمدة تصل إلى ٣٠ يومًا. ويُستخدم ملف مؤقت لإكمال الدخول باستخدام Google. يحفظ المتصفح كذلك تقدّم الضيف أو الحساب وتفضيلات القراءة والتطبيق وبيانات القرآن ونموذج التعرّف على الصوت والمقاطع المرجعية المحمّلة. يؤدي حذف بيانات الموقع من المتصفح إلى حذف هذه النسخ المحلية.</p>
+      <h3>الصوت المرجعي والاستضافة</h3>
+      <p>يستخدم المعلّم تسجيلات مرجعية من مزوّدي صوت خارجيين، منهم EveryAyah وQuran.com. تحتاج المقاطع غير المحفوظة إلى الإنترنت، ويتلقى المزوّد طلب التسجيل المطلوب. تستضيف Cloudflare التطبيق وخدمة الحسابات، وقد تعالج معلومات الطلبات المعتادة، مثل سجلات الشبكة والأخطاء. ولا تتضمن هذه الطلبات صوت الميكروفون الخام أو النص الناتج عن التعرّف عليه.</p>
+      <h3>حذف الحساب</h3>
+      <p>افتح أيقونة الحساب، واختر <strong>حذف الحساب</strong>، ثم أكّد. يُحذف سجل هويتك وتقدّمك المحفوظ وجميع جلسات الدخول من قاعدة حسابات هذا التطبيق، ويُحذف كذلك موضع هذا الحساب المحفوظ في المتصفح الحالي. تبقى تدريبات الضيف المنفصلة ونموذج التعرّف على الصوت المحمّل وملفات التطبيق الأخرى. لا يمكن محو النسخ الموجودة على أجهزة أخرى عن بُعد؛ ولحذفها، أزل بيانات الموقع من متصفحات تلك الأجهزة. لا يؤدي حذف حساب التطبيق إلى حذف حساب Google. وتخضع سجلات الاستضافة المعتادة لإعدادات الاحتفاظ لدى المزوّد.</p>
+      <p class="providers">سياسات خصوصية المزوّدين: <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">سياسة خصوصية Google</a> · <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer" target="_blank">سياسة خصوصية Cloudflare</a>.</p>
+      <p><a href="/">العودة إلى Recite Al Quran ←</a></p>
+    </section>
+  </main>
+</body>
+</html>

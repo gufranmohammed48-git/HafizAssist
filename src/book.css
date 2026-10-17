@@ -29,8 +29,17 @@ body.book-view.dark{background:#0e1712}
 .book-view.dark #teacher-enabled{--teacher-figure:#70827b;--teacher-line:#a4b2ab;--teacher-board:#2a3b31;--teacher-accent:#8c9f94;--teacher-mark:#aebbb3}
 .book-view.dark #teacher-enabled[aria-pressed=true]{--teacher-figure:#80d8bc;--teacher-line:#c9e8dc;--teacher-board:#294a3b;--teacher-accent:#dff5e8;--teacher-mark:#e0f5e8}
 .book-view #teacher-icon-on,.book-view #teacher-icon-off{flex:0 0 32px}
-@keyframes book-teacher-icon{from{opacity:0;transform:scale(.7) rotate(-8deg)}to{opacity:1;transform:scale(1) rotate(0)}}
-.book-view #teacher-enabled svg{display:block;width:32px;height:32px;flex:none;animation:book-teacher-icon 260ms ease-out}
+.book-view #teacher-enabled svg{display:block;width:32px;height:32px;flex:none}
+/* Teacher's quiet mint pulse follows the live microphone state. Enabling
+   Teacher alone leaves the icon still, including between practice sessions. */
+.book-view.reciting #teacher-enabled[aria-pressed=true]::before{content:'';position:absolute;inset:1px;border:1.5px solid var(--teacher-figure);border-radius:50%;pointer-events:none;animation:book-teacher-listening 2.4s ease-out infinite}
+.book-view.reciting #teacher-enabled[aria-pressed=true] #teacher-icon-on svg{transform-origin:50% 72%;animation:book-teacher-attentive 2.4s ease-in-out infinite;filter:drop-shadow(0 2px 3px color-mix(in srgb,var(--teacher-figure) 24%,transparent))}
+@keyframes book-teacher-listening{0%{opacity:.55;transform:scale(.94)}70%,100%{opacity:0;transform:scale(1.28)}}
+@keyframes book-teacher-attentive{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-1.5px) rotate(-3deg)}65%{transform:translateY(-.5px) rotate(2deg)}}
+@media(prefers-reduced-motion:reduce){
+  .book-view.reciting #teacher-enabled[aria-pressed=true]::before{animation:none;opacity:.55}
+  .book-view.reciting #teacher-enabled[aria-pressed=true] #teacher-icon-on svg{animation:none;filter:none}
+}
 .book-view #teacher-tooltip{position:absolute;display:block;z-index:20;left:calc(100% + 14px);top:50%;width:270px;max-width:calc(100vw - 24px);padding:13px 15px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--card) 94%,transparent);color:var(--ink);box-shadow:0 10px 32px #0002;backdrop-filter:blur(8px);font-size:12px;font-weight:400;line-height:1.65;text-align:left;white-space:normal;pointer-events:none;opacity:0;visibility:hidden;transform:translateY(-50%) scale(.9);transform-origin:left center;transition:opacity 240ms ease,transform 240ms ease,visibility 240ms}
 .book-view #teacher-enabled:hover #teacher-tooltip,.book-view #teacher-enabled:focus-visible #teacher-tooltip{opacity:1;visibility:visible;transform:translateY(-50%) scale(1)}
 .book-view #status,.book-view #model-picker{width:min(280px,calc(100vw - 100px));white-space:normal;font-size:12px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px}

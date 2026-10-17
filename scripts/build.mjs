@@ -15,6 +15,12 @@ await cp(resolve(root, 'public'), out, { recursive: true, filter: (path) => !pat
 await cp(resolve(root, 'src'), resolve(out, 'src'), { recursive: true });
 await cp(resolve(root, 'index.html'), resolve(out, 'index.html'));
 await cp(resolve(root, 'mobile.html'), resolve(out, 'mobile.html'));
+// Keep the version in local previews and the offline cache identifier. The
+// production reading entries reserve that corner for the account control.
+for (const page of ['index.html', 'mobile.html']) {
+  const html = await readFile(resolve(out, page), 'utf8');
+  await writeFile(resolve(out, page), html.replace('<html ', '<html data-release="production" '));
+}
 await cp(resolve(root, 'test.html'), resolve(out, 'test.html'));
 await cp(resolve(root, 'test2.html'), resolve(out, 'test2.html'));
 await mkdir(resolve(out, 'docs'), { recursive: true });

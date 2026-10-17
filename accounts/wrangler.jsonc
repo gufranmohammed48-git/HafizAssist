@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recitealquran-accounts",
+  "account_id": "ee6f807515a3090ba957c1983f0484ec",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "APP_ORIGIN": "https://recitealquran.com"
+  },
+  "routes": [
+    {
+      "pattern": "recitealquran.com/api/account*",
+      "zone_name": "recitealquran.com"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recitealquran-accounts",
+      "database_id": "bc19d842-ecb3-443a-b363-3a4e2b4d955b",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  }
+}

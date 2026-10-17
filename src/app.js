@@ -10,6 +10,7 @@ import { createTeacherMode, teacherAudioReference } from './teacher-mode.js';
 import { createTeacherActivity } from './teacher-activity.js';
 import { createTeacherRetry, preserveReview } from './teacher-retry.js';
 import { setupMobilePageSwipe } from './mobile-page-swipe.js';
+import { createAccounts } from './accounts.js';
 
 const $ = id => document.getElementById(id);
 const arabicNumber = new Intl.NumberFormat('ar', { numberingSystem: 'arab', useGrouping: false });
@@ -23,6 +24,9 @@ const teacherRetryEnabled = document.documentElement.dataset.teacherRetry === 'w
 const teacherRetry = createTeacherRetry(teacherRetryEnabled);
 let chapters = [], words = [], elements = [], states = [], committed = [];
 let chapter, cursor = 0, segmentStart = 0, phase = 'idle', engineReady = false;
+let accountClient, accountProgressReady = false, restoringAccountProgress = false;
+let accountProgressSignature = '', accountProgressUpdatedAt = 0;
+const accountProgressListeners = new Set();
 let segmentCarry = '';
 let alignmentAnchor = null;
 let pageBoundary = null;
@@ -234,6 +238,7 @@ document.addEventListener('pointerdown', event => {
 });
 function controls() {
   const busy = ['loading', 'starting', 'stopping'].includes(phase);
+  document.body.classList.toggle('reciting', phase === 'recording' && !voiceSearch);
   if (mobileView) {
     const reading = phase === 'recording' && !voiceSearch;
     document.body.classList.toggle('mobile-reciting', reading);
@@ -276,6 +281,7 @@ function controls() {
   $('record').setAttribute('aria-pressed', String(phase === 'recording'));
   $('record').setAttribute('aria-busy', String(['loading', 'starting', 'stopping'].includes(phase)));
   teacher.refresh();
+  notifyAccountProgress();
 }
 
 function formatTime(seconds) { return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
@@ -309,6 +315,67 @@ function paint() {
   lastFollowedAyah = currentPosition;
   teacher.refresh();
   if (tajweedReviewEnabled) wordInfo.refresh();
+  notifyAccountProgress({ meaningful: ['recording', 'stopping'].includes(phase) && !voiceSearch });
+}
+
+// Account checkpoints use the Quran's word coordinates, never the transient
+// recognition cursor or transcripts. Historical per-word flags stay local.
+function captureAccountProgress() {
+  if (!accountProgressReady || !words.length) return null;
+  const word = words[cursor] || words.at(-1);
+  const snapshot = {
+    schema: 1,
+    position: { page: currentPage, surah: word.surah, ayah: word.ayah,
+      word: word.position, bismillah: Boolean(word.bismillah) },
+    totals: { correct: completedMatched + states.filter(state => state === 'matched').length,
+      reviewed: completedReview + states.filter(state => state === 'review').length },
+  };
+  const signature = JSON.stringify(snapshot);
+  if (signature !== accountProgressSignature) {
+    accountProgressSignature = signature;
+    accountProgressUpdatedAt = Date.now();
+  }
+  return { ...snapshot, updatedAt: accountProgressUpdatedAt };
+}
+
+function notifyAccountProgress(options = {}) {
+  if (!accountProgressReady || restoringAccountProgress || voiceSearch) return;
+  for (const listener of accountProgressListeners) listener(options);
+}
+
+function restoreAccountProgress(progress) {
+  if (!accountProgressReady || locked() || teacher.busy || voiceSearch) {
+    throw new Error('Stop reciting and close voice search before resuming saved progress.');
+  }
+  const position = progress?.position;
+  const verse = chapters.find(item => item.id === position?.surah)?.verses.find(item => item.ayah === position?.ayah);
+  const layout = verse && layouts[verseKey(verse)]?.[1];
+  const bismillah = position?.bismillah === true;
+  const count = bismillah ? chapters[0].verses[0].aya_phonemes_list.length : verse?.aya_phonemes_list.length;
+  const onPage = bismillah
+    ? position?.ayah === 1 && ![1, 9].includes(position?.surah) && layout?.[0]?.[0] === position?.page
+    : layout?.[position?.word]?.[0] === position?.page;
+  const totals = progress?.totals;
+  if (progress?.schema !== 1 || !Number.isInteger(position?.page) || position.page < 1 || position.page > 604 ||
+      !Number.isInteger(position?.word) || position.word < 0 || position.word >= count || !onPage ||
+      !Number.isSafeInteger(totals?.correct) || totals.correct < 0 ||
+      !Number.isSafeInteger(totals?.reviewed) || totals.reviewed < 0) {
+    throw new Error('This saved position does not match the current Quran page data.');
+  }
+  restoringAccountProgress = true;
+  try {
+    openPage(position.page);
+    const index = words.findIndex(word => word.surah === position.surah && word.ayah === position.ayah &&
+      word.position === position.word && Boolean(word.bismillah) === bismillah);
+    if (index < 0) throw new Error('This saved position does not match the current Quran page data.');
+    cursor = index; segmentStart = index;
+    completedMatched = totals.correct; completedReview = totals.reviewed;
+    // Restore only the agreed checkpoint and totals. Do not invent previous
+    // word highlights or treat account data as recognition evidence.
+    committed = [...states]; lastFollowedAyah = null;
+    paint(); controls(); followWord(true);
+    status('Saved position restored. Start reciting when you’re ready.');
+  } finally { restoringAccountProgress = false; }
 }
 
 function followWord(force = false) {
@@ -594,6 +661,7 @@ function resetSession() {
   elapsed = 0; startedAt = 0; savedThisRun = false; lastFollowedAyah = null;
   $('time').textContent = '00:00'; paint();
   status('Choose a passage, then start when you’re ready.');
+  notifyAccountProgress({ meaningful: true });
 }
 function focusVerse(key) {
   pageBoundary = null;
@@ -615,6 +683,7 @@ function openPage(page, targetKey) {
   currentPage = page; renderPassage();
   if (targetKey) focusVerse(targetKey);
   else followWord(true);
+  notifyAccountProgress({ meaningful: true });
 }
 const searchName = value => value.normalize('NFKD').replace(/[\u0300-\u036f\u064b-\u065f\u0670ـ]/g, '').replace(/[أإآٱ]/g, 'ا').toLowerCase().replace(/[^\p{L}\p{N}:]/gu, '');
 function searchPassage(event) {
@@ -1036,7 +1105,7 @@ async function stopRecording(reason = '') {
       phase = 'idle'; controls();
       status(cursor >= words.length ? 'You reached the end of your passage. Take a moment to revisit any highlighted words.' : 'Session paused. Start again to continue, or select a word to revisit it.');
       if (voiceSearch) findVoiceVerse();
-      else saveSession();
+      else { saveSession(); void accountClient?.flush(); }
     } catch (error) { failEngine(error.message); }
     finally { stopPromise = null; }
   })();
@@ -1194,7 +1263,19 @@ async function init() {
     cancelAnimationFrame(scrollFrame); // Keep the controls visible on initial load.
   } catch (error) { $('ayahs').textContent = 'Unable to load the Quran passage.'; status(error.message, true); }
 }
-void init();
+void init().then(() => {
+  accountProgressReady = Boolean(chapter && words.length);
+  accountClient = createAccounts({
+    capture: captureAccountProgress,
+    restore: restoreAccountProgress,
+    isBusy: () => !accountProgressReady || locked() || teacher.busy || voiceSearch,
+    subscribe(listener) {
+      accountProgressListeners.add(listener);
+      return () => accountProgressListeners.delete(listener);
+    },
+  });
+  accountClient.changed({ initial: true });
+}).catch(error => console.error('Account controls could not load:', error));
 // Colour data loads independently so unavailable annotations cannot hold up
 // Quran reading. If it arrives later, decorate the currently displayed page.
 void tajweedColors.load().then(loaded => {

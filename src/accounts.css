@@ -1,0 +1,45 @@
+.account-entry{position:fixed;top:10px;right:70px;z-index:13;direction:ltr}
+html[data-release=production] .app-version{display:none!important}
+.book-view.book-controls-top.account-header-room main{padding-top:62px}
+.account-orb{--account-light:#79ceb5;--account-deep:#256d58;--account-person:#d2f3e6;position:relative;display:grid;place-items:center;width:40px;height:40px;min-width:40px;min-height:40px;padding:0;border:0!important;border-radius:14px;background:transparent!important;box-shadow:none!important;cursor:pointer;transition:transform .24s ease,filter .24s ease}
+.account-orb-symbol{width:40px;height:40px;overflow:visible;filter:drop-shadow(0 3px 2px #071e1b30) drop-shadow(0 1px 0 #ffffff48);transition:transform .24s ease}
+.account-orb:hover{transform:translateY(-2px)}.account-orb:hover .account-orb-symbol{transform:rotate(-5deg)}
+.account-orb:active{transform:translateY(1px) scale(.95)}.account-orb:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.account-orb-dot{position:absolute;right:1px;bottom:3px;width:9px;height:9px;border:2px solid var(--paper,var(--card));border-radius:50%;background:#66746e;transition:background .2s ease}
+.account-orb.is-signed-in .account-orb-dot{background:#6ee7a5}.account-orb.needs-choice .account-orb-dot{background:#e9b864}
+.account-dialog{color:var(--ink);background:var(--paper,var(--card));border:1px solid var(--border);border-radius:22px;padding:0;width:min(380px,calc(100vw - 28px));max-width:calc(100vw - 28px);max-height:calc(100dvh - 32px);overflow:auto;box-shadow:0 24px 80px #0005;opacity:0;transform:translateY(15px) scale(.94);transition:opacity .19s ease,transform .24s cubic-bezier(.2,.8,.2,1);scrollbar-width:thin}
+.account-dialog.is-visible{opacity:1;transform:translateY(0) scale(1)}
+.account-dialog::backdrop{background:#07181360;backdrop-filter:blur(5px)}
+.account-dialog-inner{display:flex;flex-direction:column;gap:12px;padding:22px}
+.account-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.account-dialog h2{font:inherit;font-size:20px;font-weight:650;margin:0;letter-spacing:-.4px;color:var(--ink)}
+.account-dialog .account-close{display:grid;place-items:center;flex:none;width:30px;height:30px;min-width:30px;min-height:30px;padding:0;border:0;border-radius:50%;font-size:24px;line-height:1;background:transparent;color:var(--muted);cursor:pointer}
+.account-dialog .account-close:hover{background:color-mix(in srgb,var(--green) 10%,transparent)}
+.account-dialog p{font-size:13px;line-height:1.65;margin:0;color:var(--muted)}
+.account-dialog .account-status{font-size:12px;color:var(--green)}.account-dialog .account-message{font-size:12px;color:var(--ink);border-inline-start:2px solid var(--green);padding-inline-start:10px}
+.account-identity{display:flex;align-items:center;gap:12px;margin:2px 0}
+.account-identity-avatar{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:15px;color:#f5fff9;background:linear-gradient(145deg,#66bca0,#2f6c58);box-shadow:inset 0 1px 0 #fff5,0 3px 6px #0002;font-size:20px;font-weight:650}
+.account-identity>div{min-width:0;display:flex;flex-direction:column;gap:3px}.account-name{font-size:15px;overflow-wrap:anywhere}.account-email{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.account-dialog button:not(.account-close){font-family:inherit;font-size:13px;border-radius:12px;padding:11px 14px;min-height:42px;line-height:1.45;cursor:pointer;transition:background .2s ease,transform .2s ease,opacity .2s ease}
+.account-dialog button:not(.account-close):active{transform:scale(.98)}
+.account-dialog button:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.account-dialog button:disabled{opacity:.45;cursor:default;transform:none}
+.account-dialog .account-primary{background:var(--green);color:var(--paper,#fff);border:1px solid transparent;font-weight:600}
+.account-dialog .account-secondary{background:transparent;color:var(--ink);border:1px solid var(--border)}
+.account-dialog .account-google{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#25332c;border:1px solid #d8dedb;box-shadow:0 2px 3px #00000009}
+.account-google svg{width:18px;height:18px;flex:none}
+.account-dialog .account-member-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--border);padding-top:14px;margin-top:2px}
+.account-dialog .account-delete-link{background:transparent;border:0;color:var(--muted);font-size:11px!important;padding:8px!important}
+.account-dialog .account-delete-link:hover{color:#be6861}
+.account-choice{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:15px;background:color-mix(in srgb,var(--green) 4%,transparent)}
+.account-choice h3{margin:0;font:inherit;font-size:14px;font-weight:650;color:var(--ink)}
+.account-dialog .account-choice p{font-size:12px}
+.account-position-row{display:flex;flex-direction:column;gap:7px;font-size:11px;color:var(--ink);padding:5px 0 7px}
+.account-delete-confirm{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--border)}
+.account-dialog .account-danger{background:#a5443d;color:white;border:1px solid transparent}
+.account-dialog .account-busy-note{font-size:11px;padding-top:10px;border-top:1px solid var(--border)}
+.account-privacy{align-self:center;font-size:11px;color:var(--muted);text-underline-offset:3px;margin-top:1px}
+.account-dialog [hidden]{display:none!important}
+.book-view.dark .account-orb{--account-light:#83d8bf;--account-deep:#245e50;--account-person:#bce5d6}
+@media(max-width:600px){.account-dialog-inner{padding:20px;gap:11px}.account-dialog{border-radius:20px}.account-dialog h2{font-size:19px}}
+@media(prefers-reduced-motion:reduce){.account-orb,.account-orb-symbol,.account-dialog{transition:none}.account-orb:hover,.account-orb:hover .account-orb-symbol{transform:none}}
